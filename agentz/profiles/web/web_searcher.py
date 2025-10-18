@@ -30,6 +30,6 @@ Only output JSON. Follow the JSON schema below. Do not output anything else. I w
 {ToolAgentOutput.model_json_schema()}""",
     runtime_template="{query}",
     output_schema=ToolAgentOutput,
-    tools=[search_google],
+    tools=[web_search],
     model=None
 )

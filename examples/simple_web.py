@@ -1,21 +1,10 @@
-"""Example script to run the SimpleWebPipeline for quick debugging.
-
-Usage:
-    python examples/simple_web.py
-"""
-
 from pipelines.simple_web import SimpleWebPipeline, WebSearchDebugQuery
 
+# Load the default configuration file and start the pipeline using the one-parameter API.
+pipe = SimpleWebPipeline("pipelines/configs/web_searcher.yaml")
 
-def main() -> None:
-    pipeline = SimpleWebPipeline("pipelines/configs/web_searcher.yaml")
+query = WebSearchDebugQuery(
+    prompt="Find recent breakthroughs in reinforcement learning and cite sources."
+)
 
-    query = WebSearchDebugQuery(
-        prompt="Find recent breakthroughs in reinforcement learning and cite sources."
-    )
-
-    pipeline.run_sync(query)
-
-
-if __name__ == "__main__":
-    main()
+pipe.run_sync(query)

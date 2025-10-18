@@ -46,23 +46,25 @@ class SimpleWebPipeline(BasePipeline):
         """Run a single iteration that calls the web_searcher agent."""
         self.update_printer("research", "Executing web search debug pipeline...")
 
-        iteration, group_id = self.begin_iteration(title="Web Search Debug")
+        # Begin iteration - group_id managed automatically
+        iteration = self.begin_iteration(title="Web Search Debug")
         logger.debug(f"Starting web search iteration {iteration.index}")
 
-        try:
-            query = self.context.state.query
+        query = self.context.state.query
 
-            result = await self.web_search_agent(query, group_id=group_id)
+        result = await self.web_search_agent(query)
 
-            if self.state:
-                self.state.final_report = result.output
-                self.state.mark_research_complete()
+        if self.state:
+            self.state.final_report = result.output
+            self.state.mark_research_complete()
 
-            self.update_printer("research", "Web search completed", is_done=True)
-            logger.debug("Web search agent execution finished successfully.")
-            return result
-        finally:
-            self.end_iteration(group_id)
+        self.update_printer("research", "Web search completed", is_done=True)
+        logger.debug("Web search agent execution finished successfully.")
+
+        # End iteration - group_id managed automatically
+        self.end_iteration()
+
+        return result
 
     async def finalize(self, result: ToolAgentOutput) -> ToolAgentOutput:
         """Return the agent output directly for debugging convenience."""

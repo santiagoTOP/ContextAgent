@@ -111,7 +111,7 @@ async def execute_tools(
         update_printer_fn: Optional function for printer updates
     """
     from agentz.profiles.manager.routing import AgentSelectionPlan
-
+    
     # Retrieve route_plan from payloads if needed
     plan = None
     if isinstance(route_plan, AgentSelectionPlan):
@@ -122,6 +122,10 @@ async def execute_tools(
             if isinstance(payload, AgentSelectionPlan):
                 plan = payload
                 break
+
+
+    import ipdb
+    ipdb.set_trace()
 
     if plan and plan.tasks:
         await execute_tool_plan(
