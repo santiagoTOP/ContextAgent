@@ -15,7 +15,7 @@ from rich.console import Console
 from gui.streaming_printer import StreamingPrinter
 from pipelines.simple import SimplePipeline
 from pipelines.data_scientist import DataScientistPipeline
-from pipelines.web_searcher import WebSearcherPipeline
+from pipelines.web_researcher import WebSearcherPipeline
 from pipelines.vanilla_chat import VanillaChatPipeline
 from pipelines.vanilla_chat_persistent import VanillaChatPersistentPipeline
 

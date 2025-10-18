@@ -19,7 +19,7 @@ from rich.console import Console
 from streaming_printer import StreamingPrinter
 from pipelines.simple import SimplePipeline
 from pipelines.data_scientist import DataScientistPipeline
-from pipelines.web_searcher import WebSearcherPipeline
+from pipelines.web_researcher import WebSearcherPipeline
 from pipelines.vanilla_chat import VanillaChatPipeline
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
