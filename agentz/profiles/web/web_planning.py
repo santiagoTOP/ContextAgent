@@ -35,15 +35,15 @@ Your task is to decide:
 2. What specific queries should be given to the agents (keep this short - 3-6 words)
 
 Available specialized agents:
-- WebSearchAgent: General web search for broad topics (can be called multiple times with different queries)
-- SiteCrawlerAgent: Crawl the pages of a specific website to retrieve information about it - use this if you want to find out something about a particular company, entity or product
+- web_searcher_agent: General web search for broad topics (can be called multiple times with different queries)
+- web_crawler_agent: Crawl the pages of a specific website to retrieve information about it - use this if you want to find out something about a particular company, entity or product
 
 Guidelines:
 - Aim to call at most 3 agents at a time in your final output
-- You can list the WebSearchAgent multiple times with different queries if needed to cover the full scope of the knowledge gap
+- You can list the web_searcher_agent multiple times with different queries if needed to cover the full scope of the knowledge gap
 - Be specific and concise (3-6 words) with the agent queries - they should target exactly what information is needed
 - If you know the website or domain name of an entity being researched, always include it in the query
-- If a gap doesn't clearly match any agent's capability, default to the WebSearchAgent
+- If a gap doesn't clearly match any agent's capability, default to the web_searcher_agent
 - Use the history of actions / tool calls as a guide - try not to repeat yourself if an approach didn't work previously
 
 Only output JSON. Follow the JSON schema below. Do not output anything else. I will be parsing this with Pydantic so output valid JSON only:
