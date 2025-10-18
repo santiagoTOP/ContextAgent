@@ -191,7 +191,7 @@ class WebCrawler:
 
 
 @function_tool
-async def web_crawl(
+async def crawl_website(
     url: str,
     timeout: int = DEFAULT_TIMEOUT,
 ) -> dict[str, Any]:
@@ -224,7 +224,7 @@ async def web_crawl(
 
 
 __all__ = [
-    "web_crawl",
+    "crawl_website",
     "WebCrawler",
     "WebCrawlConfig",
     "WebCrawlError",

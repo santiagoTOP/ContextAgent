@@ -187,7 +187,7 @@ class DuckDuckGoSearchClient:
 
 
 @function_tool
-async def web_search(
+async def web_search_tool(
     query: str,
     num_results: int = 5,
     region: Optional[str] = None,
