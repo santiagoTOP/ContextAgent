@@ -15,6 +15,10 @@ from .web_tools import (
     search_google,
 )
 
+from .web_tools import (
+    web_search
+)
+
 __all__ = [
     "load_dataset",
     "analyze_data",
@@ -23,4 +27,5 @@ __all__ = [
     "evaluate_model",
     "create_visualization",
     "search_google",
+    "web_search",
 ]
