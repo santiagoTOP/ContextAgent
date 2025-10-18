@@ -66,9 +66,3 @@ class SimpleWebPipeline(BasePipeline):
 
         return result
 
-    async def finalize(self, result: ToolAgentOutput) -> ToolAgentOutput:
-        """Return the agent output directly for debugging convenience."""
-        return result
-
-
-__all__ = ["WebSearchDebugQuery", "SimpleWebPipeline"]

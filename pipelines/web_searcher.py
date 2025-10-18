@@ -52,7 +52,7 @@ class WebSearcherPipeline(BasePipeline):
             "web_searcher",
         ]
         self.tool_agents = {
-            f"{name}": ContextAgent.from_profile(self, name, llm)
+            f"{name}_agent": ContextAgent.from_profile(self, name, llm)
             for name in tool_agents
         }
 

@@ -27,17 +27,16 @@ async def execute_tool_plan(
         update_printer_fn: Optional function for printer updates
     """
     # Import here to avoid circular dependency
-    from agentz.profiles.manager.routing import AgentSelectionPlan, AgentTask
     from agentz.profiles.base import ToolAgentOutput
 
-    if not isinstance(plan, AgentSelectionPlan) or not plan.tasks:
-        return
 
     state = context.state
     state.current_iteration.tools.clear()
 
-    async def run_single(task: AgentTask) -> ToolAgentOutput:
+    async def run_single(task: Any) -> ToolAgentOutput:
         agent = tool_agents.get(task.agent)
+        # import ipdb
+        # ipdb.set_trace()
         if agent is None:
             output = ToolAgentOutput(
                 output=f"No implementation found for agent {task.agent}",
@@ -110,22 +109,7 @@ async def execute_tools(
         agent_step_fn: Function to execute agent steps
         update_printer_fn: Optional function for printer updates
     """
-    from agentz.profiles.manager.routing import AgentSelectionPlan
-    
-    # Retrieve route_plan from payloads if needed
-    plan = None
-    if isinstance(route_plan, AgentSelectionPlan):
-        plan = route_plan
-    elif route_plan and hasattr(context, 'state'):
-        # Try to find AgentSelectionPlan in payloads
-        for payload in context.state.current_iteration.payloads:
-            if isinstance(payload, AgentSelectionPlan):
-                plan = payload
-                break
-
-
-    import ipdb
-    ipdb.set_trace()
+    plan = route_plan
 
     if plan and plan.tasks:
         await execute_tool_plan(

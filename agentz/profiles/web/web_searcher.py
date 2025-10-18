@@ -3,7 +3,7 @@ from __future__ import annotations
 from agentz.profiles.base import Profile, ToolAgentOutput
 from agentz.tools import search_google
 
-from agentz.tools import web_search
+from agentz.tools.web_tools.search import web_search
 
 # Profile instance for web searcher agent
 web_searcher_profile = Profile(
