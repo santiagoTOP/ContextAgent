@@ -100,6 +100,7 @@ class BasePipeline:
         self.start_time: Optional[float] = None
         self.should_continue = True
         self.constraint_reason = ""
+        self._current_group_id: Optional[str] = None
 
         # Setup tracing configuration and logging
         self._setup_tracing()
@@ -365,20 +366,22 @@ class BasePipeline:
         self,
         title: Optional[str] = None,
         border_style: str = "white"
-    ) -> Tuple[Any, str]:
+    ) -> Any:
         """Begin a new iteration with its associated group.
 
         Combines context.begin_iteration() + start_group() into a single call.
+        Automatically manages the group_id internally.
 
         Args:
             title: Optional custom title (default: "Iteration {index}")
             border_style: Border style for the group (default: "white")
 
         Returns:
-            Tuple of (iteration_record, group_id)
+            The iteration record
         """
         iteration, group_id = self.context.begin_iteration()
         self.iteration = iteration.index
+        self._current_group_id = group_id
 
         display_title = title or f"Iteration {iteration.index}"
         self.start_group(
@@ -388,51 +391,51 @@ class BasePipeline:
             iteration=iteration.index,
         )
 
-        return iteration, group_id
+        return iteration
 
-    def end_iteration(self, group_id: str, is_done: bool = True) -> None:
+    def end_iteration(self, is_done: bool = True) -> None:
         """End the current iteration and its associated group.
 
         Combines context.mark_iteration_complete() + end_group() into a single call.
+        Automatically uses the internally managed group_id.
 
         Args:
-            group_id: The group ID to close
             is_done: Whether the iteration completed successfully (default: True)
         """
         self.context.mark_iteration_complete()
-        self.end_group(group_id, is_done=is_done)
+        self.end_group(self._current_group_id, is_done=is_done)
+        self._current_group_id = None
 
     def begin_final_report(
         self,
         title: str = "Final Report",
         border_style: str = "white"
-    ) -> str:
+    ) -> None:
         """Begin the final report phase with its associated group.
 
         Combines context.begin_final_report() + start_group() into a single call.
+        Automatically manages the group_id internally.
 
         Args:
             title: Title for the final report group (default: "Final Report")
             border_style: Border style for the group (default: "white")
-
-        Returns:
-            The final report group_id
         """
         _, group_id = self.context.begin_final_report()
+        self._current_group_id = group_id
         self.start_group(group_id, title=title, border_style=border_style)
-        return group_id
 
-    def end_final_report(self, group_id: str, is_done: bool = True) -> None:
+    def end_final_report(self, is_done: bool = True) -> None:
         """End the final report phase and its associated group.
 
         Combines context.mark_final_complete() + end_group() into a single call.
+        Automatically uses the internally managed group_id.
 
         Args:
-            group_id: The final report group ID to close
             is_done: Whether the final report completed successfully (default: True)
         """
         self.context.mark_final_complete()
-        self.end_group(group_id, is_done=is_done)
+        self.end_group(self._current_group_id, is_done=is_done)
+        self._current_group_id = None
 
     def prepare_query(
         self,
@@ -526,12 +529,47 @@ class BasePipeline:
         """
         pass
 
+    def _inject_pipeline_context(self) -> None:
+        """Inject pipeline-specific context into state._runtime_context.
+
+        This populates template placeholders with values from:
+        - Pipeline config (data_path, user_prompt, etc.)
+        - Available tool agents
+
+        Can be overridden in subclasses for custom context injection.
+        """
+        if not self.state:
+            return
+
+        context_dict = {}
+
+        # Add data path if available
+        if hasattr(self.config, 'data'):
+            data_path = self.config.data.get('path', None)
+            if data_path:
+                context_dict['data_path'] = data_path
+
+            # Add user prompt if available
+            user_prompt = self.config.data.get('prompt', None)
+            if user_prompt:
+                context_dict['user_prompt'] = user_prompt
+
+        # Add available agents list
+        if hasattr(self, 'tool_agents') and self.tool_agents:
+            agents_list = ', '.join(self.tool_agents.keys())
+            context_dict['available_agents'] = agents_list
+
+        # Update runtime context
+        if context_dict:
+            self.state.update_runtime_context(context_dict)
+
     async def initialize_pipeline(self, query: Any) -> None:
         """Initialize pipeline state and store query.
 
         Default implementation:
         - Stores original query object in state
         - Automatically formats and stores the query string
+        - Populates runtime_context with pipeline-specific values
         - Updates printer status
 
         The formatted query is accessible via self.state.formatted_query.
@@ -547,6 +585,11 @@ class BasePipeline:
             self.state.set_query(query)
             # Automatically format and store the query string
             self.state.formatted_query = self.format_query(query)
+
+        # Populate runtime_context with pipeline-specific values
+        if self.state:
+            self._inject_pipeline_context()
+
         self.update_printer("initialization", "Pipeline initialized", is_done=True)
 
     def format_query(self, query: Any) -> str:
@@ -681,29 +724,29 @@ class BasePipeline:
         should_continue_fn = should_continue or self._should_continue_iteration
 
         while should_continue_fn():
-            # Begin iteration with its group
-            iteration, group_id = self.begin_iteration()
+            # Begin iteration - group_id managed automatically
+            iteration = self.begin_iteration()
 
             # Trigger before hooks
             await self._hook_registry.trigger(
                 "before_iteration",
                 context=self.context,
                 iteration=iteration,
-                group_id=group_id
+                group_id=self._current_group_id
             )
 
             try:
-                await iteration_body(iteration, group_id)
+                await iteration_body(iteration, self._current_group_id)
             finally:
                 # Trigger after hooks
                 await self._hook_registry.trigger(
                     "after_iteration",
                     context=self.context,
                     iteration=iteration,
-                    group_id=group_id
+                    group_id=self._current_group_id
                 )
-                # End iteration with its group
-                self.end_iteration(group_id)
+                # End iteration - group_id managed automatically
+                self.end_iteration()
 
             # Check if state indicates completion
             if self.state and self.state.complete:
@@ -712,9 +755,9 @@ class BasePipeline:
         # Execute final body if provided
         result = None
         if final_body:
-            final_group = self.begin_final_report()
-            result = await final_body(final_group)
-            self.end_final_report(final_group)
+            self.begin_final_report()
+            result = await final_body(self._current_group_id)
+            self.end_final_report()
 
         return result
 
@@ -902,7 +945,7 @@ class BasePipeline:
         self,
         route_plan: Any,
         tool_agents: Dict[str, Any],
-        group_id: str,
+        group_id: Optional[str] = None,
     ) -> None:
         """Execute tool agents based on routing plan.
 
@@ -911,12 +954,13 @@ class BasePipeline:
         Args:
             route_plan: The routing plan (can be AgentSelectionPlan or other)
             tool_agents: Dict mapping agent names to agent instances
-            group_id: Group ID for printer updates
+            group_id: Optional group ID for printer updates. If None, uses pipeline's current group.
         """
+        effective_group_id = group_id if group_id is not None else self._current_group_id
         await execute_tools(
             route_plan=route_plan,
             tool_agents=tool_agents,
-            group_id=group_id,
+            group_id=effective_group_id,
             context=self.context,
             agent_step_fn=self.agent_step,
             update_printer_fn=self.update_printer,

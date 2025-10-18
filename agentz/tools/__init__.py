@@ -10,6 +10,11 @@ from .data_tools import (
     create_visualization,
 )
 
+# Re-export web tools
+from .web_tools import (
+    search_google,
+)
+
 from .web_tools import (
     web_search
 )
@@ -21,5 +26,6 @@ __all__ = [
     "train_model",
     "evaluate_model",
     "create_visualization",
+    "search_google",
     "web_search",
 ]

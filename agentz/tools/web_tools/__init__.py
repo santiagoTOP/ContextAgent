@@ -1,5 +1,9 @@
-"""Web-related tools."""
+"""Web tools for search and web content retrieval."""
 
 from .search import web_search
+from .web_search import search_google
 
-__all__ = ["web_search"]
+__all__ = [
+    "web_search",
+    "search_google",
+]
