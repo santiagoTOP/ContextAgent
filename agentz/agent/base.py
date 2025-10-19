@@ -116,37 +116,6 @@ class ContextAgent(Agent[TContext]):
             return payload
         return {"input": payload}
 
-    def build_prompt(
-        self,
-        payload: Any = None,
-        *,
-        context: Any = None,
-        template: Optional[str] = None,
-    ) -> str:
-        validated = payload  # No validation needed
-
-        if self.prompt_builder:
-            return self.prompt_builder(validated, context, self)
-
-        if context is not None and template:
-            builder = getattr(context, "build_prompt", None)
-            if builder is None:
-                raise AttributeError("Context object must expose build_prompt(...)")
-            prompt_data = self._to_prompt_payload(validated)
-            return builder(agent=self, template_name=template, data=prompt_data)
-
-        if isinstance(validated, str):
-            return validated
-        if isinstance(validated, BaseModel):
-            return validated.model_dump_json(indent=2)
-        if isinstance(validated, dict):
-            return json.dumps(validated, indent=2)
-
-        if validated is None and isinstance(self.instructions, str):
-            return self.instructions
-
-        return str(validated)
-
     def build_contextual_instructions(self, payload: Any = None) -> str:
         """Build instructions with automatic context injection from pipeline state.
 
@@ -258,38 +227,6 @@ class ContextAgent(Agent[TContext]):
         # Fallback to original format_context_prompt if no runtime_template
         return state.format_context_prompt(current_input=current_input)
 
-    async def invoke(
-        self,
-        *,
-        pipeline: Any,
-        span_name: str,
-        payload: Any = None,
-        prompt: Optional[str] = None,
-        context: Any = None,
-        template: Optional[str] = None,
-        span_type: Optional[str] = None,
-        output_model: Optional[type[BaseModel]] = None,
-        printer_key: Optional[str] = None,
-        printer_title: Optional[str] = None,
-        printer_group_id: Optional[str] = None,
-        printer_border_style: Optional[str] = None,
-        **span_kwargs: Any,
-    ) -> Any:
-        instructions = prompt or self.build_prompt(payload, context=context, template=template)
-        model = output_model or self.output_model
-
-        return await pipeline.agent_step(
-            agent=self,
-            instructions=instructions,
-            span_name=span_name,
-            span_type=span_type or self.default_span_type,
-            output_model=model,
-            printer_key=printer_key,
-            printer_title=printer_title,
-            printer_group_id=printer_group_id,
-            printer_border_style=printer_border_style,
-            **span_kwargs,
-        )
 
     async def __call__(self, payload: Any = None, group_id: Optional[str] = None) -> Any:
         """Make ContextAgent callable directly.
