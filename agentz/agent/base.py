@@ -191,40 +191,6 @@ class ContextAgent(Agent[TContext]):
                     context_dict[placeholder] = str(value)
                     continue
 
-                # Apply intelligent fallbacks for common placeholders
-                if placeholder == 'findings' and hasattr(state, 'findings_text'):
-                    # Use findings_text() method for findings
-                    findings_text = state.findings_text()
-                    context_dict[placeholder] = findings_text if findings_text else 'No findings available yet.'
-                    continue
-
-                if placeholder == 'data_path':
-                    # Check config for data path
-                    if self._config and hasattr(self._config, 'data'):
-                        data_path = self._config.data.get('path', 'N/A')
-                        context_dict[placeholder] = data_path
-                    else:
-                        context_dict[placeholder] = 'N/A'
-                    continue
-
-                if placeholder == 'user_prompt':
-                    # Check config for prompt or use state.query
-                    if self._config and hasattr(self._config, 'data'):
-                        user_prompt = self._config.data.get('prompt', '')
-                        context_dict[placeholder] = user_prompt if user_prompt else (str(state.query) if state.query else '')
-                    else:
-                        context_dict[placeholder] = str(state.query) if state.query else ''
-                    continue
-
-                if placeholder == 'available_agents':
-                    # Check for tool_agents
-                    if self._tool_agents:
-                        agents_list = ', '.join(self._tool_agents.keys())
-                        context_dict[placeholder] = agents_list
-                    else:
-                        context_dict[placeholder] = 'N/A'
-                    continue
-
                 # Default: empty string for unknown placeholders
                 context_dict[placeholder] = ''
 
