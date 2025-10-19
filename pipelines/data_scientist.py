@@ -59,34 +59,9 @@ class DataScientistPipeline(BasePipeline):
         }
 
     @autotracing()
-    async def run(self, query: Any = None) -> Any:
-        """Execute data science workflow - full pipeline logic in one method.
-
-        Implements the complete workflow:
-        1. Initialize query in state
-        2. Iterative loop: observe → evaluate → route → tools
-        3. Final report generation
-        4. Finalization
-
-        This method demonstrates the @autotracing() decorator pattern, which automatically
-        handles pipeline initialization (reporter, printer, tracing) and cleanup.
-
-        For advanced use cases requiring explicit control, you can still use the context manager:
-            with self.run_context(enable_printer=False):
-                # custom logic here
-
-        Args:
-            query: DataScienceQuery input
-
-        Returns:
-            Final report from state
-        """
+    async def run(self, query: DataScienceQuery) -> Any:
         # Phase 1: Initialize query in state
-        if query is not None:
-            self.context.state.set_query(query)
-            formatted_query = query.format()
-        else:
-            formatted_query = ""
+        self.context.state.set_query(query)
 
         self.update_printer("initialization", "Pipeline initialized", is_done=True)
         self.update_printer("research", "Executing research workflow...")
@@ -97,7 +72,7 @@ class DataScientistPipeline(BasePipeline):
             self.begin_iteration()
 
             # Observe → Evaluate → Route → Tools
-            observe_output = await self.observe_agent(formatted_query)
+            observe_output = await self.observe_agent(query)
             evaluate_output = await self.evaluate_agent(observe_output)
 
             if not self.context.state.complete:
