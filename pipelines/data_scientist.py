@@ -39,40 +39,30 @@ class DataScientistPipeline(BasePipeline):
         self.context = Context(["profiles", "states"])
         llm = self.config.llm.main_model
 
-        # Create callbacks for agent execution
-        callbacks = {
-            'agent_step': self.agent_step,
-            'get_current_group_id': lambda: self._current_group_id,
-        }
-
         # Create manager agents with explicit dependencies
         self.observe_agent = ContextAgent.from_profile(
             context=self.context,
             config=self.config,
             role="observe",
             llm=llm,
-            callbacks=callbacks,
         )
         self.evaluate_agent = ContextAgent.from_profile(
             context=self.context,
             config=self.config,
             role="evaluate",
             llm=llm,
-            callbacks=callbacks,
         )
         self.routing_agent = ContextAgent.from_profile(
             context=self.context,
             config=self.config,
             role="routing",
             llm=llm,
-            callbacks=callbacks,
         )
         self.writer_agent = ContextAgent.from_profile(
             context=self.context,
             config=self.config,
             role="writer",
             llm=llm,
-            callbacks=callbacks,
         )
 
         # Create tool agents as dictionary
@@ -90,7 +80,6 @@ class DataScientistPipeline(BasePipeline):
                 config=self.config,
                 role=name.removesuffix("_agent"),
                 llm=llm,
-                callbacks=callbacks,
             )
             for name in tool_agent_names
         }
@@ -113,11 +102,11 @@ class DataScientistPipeline(BasePipeline):
             self.iterate()
 
             # Observe → Evaluate → Route → Tools
-            observe_output = await self.observe_agent(query)
-            evaluate_output = await self.evaluate_agent(observe_output)
+            observe_output = await self.observe_agent(query, group_id=self._current_group_id, tracker=self.runtime_tracker)
+            evaluate_output = await self.evaluate_agent(observe_output, group_id=self._current_group_id, tracker=self.runtime_tracker)
 
             if not self.context.state.complete:
-                routing_output = await self.routing_agent(evaluate_output)
+                routing_output = await self.routing_agent(evaluate_output, group_id=self._current_group_id, tracker=self.runtime_tracker)
                 await execute_tools(
                     route_plan=routing_output,
                     tool_agents=self.tool_agents,
@@ -129,7 +118,7 @@ class DataScientistPipeline(BasePipeline):
 
         # Phase 3: Final report generation
         self.update_printer("research", "Research workflow complete", is_done=True)
-        await self.writer_agent(self.context.state.findings_text())
+        await self.writer_agent(self.context.state.findings_text(), group_id=self._current_group_id, tracker=self.runtime_tracker)
 
         # Phase 4: Finalization
         final_result = self.context.state.final_report

@@ -42,40 +42,30 @@ class WebSearcherPipeline(BasePipeline):
         self.context = Context(["profiles", "states"])
         llm = self.config.llm.main_model
 
-        # Create callbacks for agent execution
-        callbacks = {
-            'agent_step': self.agent_step,
-            'get_current_group_id': lambda: self._current_group_id,
-        }
-
         # Create manager agents with explicit dependencies
         self.observe_agent = ContextAgent.from_profile(
             context=self.context,
             config=self.config,
             role="observe",
             llm=llm,
-            callbacks=callbacks,
         )
         self.evaluate_agent = ContextAgent.from_profile(
             context=self.context,
             config=self.config,
             role="evaluate",
             llm=llm,
-            callbacks=callbacks,
         )
         self.planning_agent = ContextAgent.from_profile(
             context=self.context,
             config=self.config,
             role="web_planning",
             llm=llm,
-            callbacks=callbacks,
         )
         self.writer_agent = ContextAgent.from_profile(
             context=self.context,
             config=self.config,
             role="writer",
             llm=llm,
-            callbacks=callbacks,
         )
 
         # Create tool agents as dictionary
@@ -89,7 +79,6 @@ class WebSearcherPipeline(BasePipeline):
                 config=self.config,
                 role=name,
                 llm=llm,
-                callbacks=callbacks,
             )
             for name in tool_agent_names
         }
@@ -118,11 +107,11 @@ class WebSearcherPipeline(BasePipeline):
             query = self.context.state.formatted_query or ""
 
             # Observe → Evaluate → Plan → Execute Multiple Tools
-            observe_output = await self.observe_agent(query)
-            evaluate_output = await self.evaluate_agent(observe_output)
+            observe_output = await self.observe_agent(query, group_id=self._current_group_id, tracker=self.runtime_tracker)
+            evaluate_output = await self.evaluate_agent(observe_output, group_id=self._current_group_id, tracker=self.runtime_tracker)
 
             if not self.context.state.complete:
-                planning_output = await self.planning_agent(evaluate_output)
+                planning_output = await self.planning_agent(evaluate_output, group_id=self._current_group_id, tracker=self.runtime_tracker)
                 await execute_tools(
                     route_plan=planning_output,
                     tool_agents=self.tool_agents,
@@ -137,7 +126,7 @@ class WebSearcherPipeline(BasePipeline):
 
         # Final report
         self.update_printer("research", "Web search workflow complete", is_done=True)
-        await self.writer_agent(self.context.state.findings_text())
+        await self.writer_agent(self.context.state.findings_text(), group_id=self._current_group_id, tracker=self.runtime_tracker)
 
         # Return final result
         final_result = self.context.state.final_report

@@ -27,7 +27,6 @@ class ContextAgent(Agent[TContext]):
         context: Optional[Any] = None,
         config: Optional[Any] = None,
         tool_agents: Optional[dict[str, Any]] = None,
-        callbacks: Optional[dict[str, Callable]] = None,
         **kwargs: Any,
     ) -> None:
         if output_model and kwargs.get("output_type"):
@@ -45,7 +44,6 @@ class ContextAgent(Agent[TContext]):
         self._context = context  # Context reference for state access
         self._config = config  # Config reference for settings access
         self._tool_agents = tool_agents  # Available tool agents
-        self._callbacks = callbacks or {}  # Callbacks for agent_step, get_current_group_id, etc.
         self._role = None  # Optional role identifier for automatic iteration tracking
 
     @classmethod
@@ -56,7 +54,6 @@ class ContextAgent(Agent[TContext]):
         role: str,
         llm: str,
         tool_agents: Optional[dict[str, Any]] = None,
-        callbacks: Optional[dict[str, Callable]] = None,
     ) -> "ContextAgent":
         """Create a ContextAgent from context and role.
 
@@ -69,7 +66,6 @@ class ContextAgent(Agent[TContext]):
             role: Role name that maps to a profile key (e.g., "observe", "evaluate")
             llm: LLM model name (e.g., "gpt-4", "claude-3-5-sonnet")
             tool_agents: Optional dictionary of available tool agents
-            callbacks: Optional dictionary of callback functions (agent_step, get_current_group_id, etc.)
 
         Returns:
             ContextAgent instance configured from the profile
@@ -80,7 +76,6 @@ class ContextAgent(Agent[TContext]):
                 config=self.config,
                 role="observe",
                 llm="gpt-4",
-                callbacks={'agent_step': self.agent_step}
             )
         """
         # Look up profile from context
@@ -116,7 +111,6 @@ class ContextAgent(Agent[TContext]):
             context=context,
             config=config,
             tool_agents=tool_agents,
-            callbacks=callbacks,
         )
 
         # Set role and profile for runtime_template access
@@ -253,21 +247,27 @@ class ContextAgent(Agent[TContext]):
         return state.format_context_prompt(current_input=current_input)
 
 
-    async def __call__(self, payload: Any = None, group_id: Optional[str] = None) -> Any:
+    async def __call__(
+        self,
+        payload: Any = None,
+        *,
+        group_id: Optional[str] = None,
+        tracker: Optional[Any] = None,
+    ) -> Any:
         """Make ContextAgent callable directly.
 
         This allows usage like: result = await agent(input_data)
 
-        When called with callbacks configured (self._callbacks['agent_step'] is set), uses
-        the agent_step callback for full tracking/tracing. Otherwise, uses ContextRunner.
+        When called with tracker provided, uses the agent_step function for full
+        tracking/tracing. Otherwise, uses ContextRunner.
 
-        Note: When calling directly without pipeline context, input validation
+        Note: When calling directly without tracker, input validation
         is relaxed to allow string inputs even if agent has a defined input_model.
 
         Args:
             payload: Input data for the agent
-            group_id: Optional group ID for tracking. If None, automatically uses
-                     pipeline's current group (_current_group_id) when available.
+            group_id: Optional group ID for tracking. Must be provided explicitly when needed.
+            tracker: Optional RuntimeTracker for execution with tracking
 
         Returns:
             Parsed output if in pipeline context, otherwise RunResult
@@ -289,17 +289,15 @@ class ContextAgent(Agent[TContext]):
             else:
                 instructions = str(payload)
 
-        # If callbacks are available, use them for full tracking
-        if self._callbacks.get('agent_step'):
-            # Auto-default group_id to current group if callback is available
-            effective_group_id = group_id
-            if effective_group_id is None and self._callbacks.get('get_current_group_id'):
-                effective_group_id = self._callbacks['get_current_group_id']()
-
-            result = await self._callbacks['agent_step'](
+        # If tracker is provided, use agent_step function for full tracking
+        if tracker:
+            from agentz.runner.executor import agent_step
+            
+            result = await agent_step(
+                tracker=tracker,
                 agent=self,
                 instructions=instructions,
-                group_id=effective_group_id,
+                group_id=group_id,
             )
             # Extract final output for cleaner API
             output = result.final_output if hasattr(result, 'final_output') else result
