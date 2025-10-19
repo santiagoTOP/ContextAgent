@@ -203,12 +203,6 @@ class ContextAgent(Agent[TContext]):
                     context_dict[placeholder] = str(value)
                     continue
 
-                # Try runtime_context (pipeline-specific context)
-                runtime_ctx = getattr(state, '_runtime_context', None)
-                if runtime_ctx and placeholder in runtime_ctx:
-                    context_dict[placeholder] = str(runtime_ctx[placeholder])
-                    continue
-
                 # Apply intelligent fallbacks for common placeholders
                 if placeholder == 'findings' and hasattr(state, 'findings_text'):
                     # Use findings_text() method for findings
@@ -232,6 +226,15 @@ class ContextAgent(Agent[TContext]):
                         context_dict[placeholder] = user_prompt if user_prompt else (str(state.query) if state.query else '')
                     else:
                         context_dict[placeholder] = str(state.query) if state.query else ''
+                    continue
+
+                if placeholder == 'available_agents':
+                    # Check pipeline for tool_agents
+                    if self._pipeline and hasattr(self._pipeline, 'tool_agents') and self._pipeline.tool_agents:
+                        agents_list = ', '.join(self._pipeline.tool_agents.keys())
+                        context_dict[placeholder] = agents_list
+                    else:
+                        context_dict[placeholder] = 'N/A'
                     continue
 
                 # Default: empty string for unknown placeholders

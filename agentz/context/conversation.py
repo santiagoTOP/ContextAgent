@@ -102,7 +102,6 @@ class ConversationState(BaseModel):
     formatted_query: Optional[str] = None  # Store pre-formatted query string
 
     _iteration_model: Type[BaseIterationRecord] = PrivateAttr()
-    _runtime_context: Dict[str, str] = PrivateAttr(default_factory=dict)
 
     def start_timer(self) -> None:
         self.started_at = time.time()
@@ -183,18 +182,6 @@ class ConversationState(BaseModel):
     def set_query(self, query: Any) -> None:
         """Set the query - stores the original query object."""
         self.query = query
-
-    def set_runtime_context(self, key: str, value: str) -> None:
-        """Set a runtime context value for template placeholders."""
-        self._runtime_context[key] = value
-
-    def get_runtime_context(self, key: str, default: str = '') -> str:
-        """Get a runtime context value."""
-        return self._runtime_context.get(key, default)
-
-    def update_runtime_context(self, context_dict: Dict[str, str]) -> None:
-        """Update multiple runtime context values at once."""
-        self._runtime_context.update(context_dict)
 
     def record_payload(self, payload: Any) -> BaseModel:
         """Attach a structured payload to the current iteration."""

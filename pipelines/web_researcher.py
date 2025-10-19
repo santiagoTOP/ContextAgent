@@ -26,7 +26,7 @@ class WebSearcherPipeline(BasePipeline):
 
     This pipeline demonstrates web search with parallel query execution:
     - __init__: Setup agents (observe, evaluate, planning, writer) and tool agents (web_searcher)
-    - execute: Implement the workflow logic (observe → evaluate → plan → execute multiple searches → write)
+    - run: Implement the workflow logic (observe → evaluate → plan → execute multiple searches → write)
     - WebSearchQuery.format(): Format query (handled automatically by BasePipeline)
 
     The planning agent generates multiple web search tasks that are executed in parallel.
@@ -57,8 +57,15 @@ class WebSearcherPipeline(BasePipeline):
             for name in tool_agents
         }
 
-    async def execute(self) -> Any:
-        """Execute web search workflow - full implementation in one function."""
+    async def run(self, query: Any = None) -> Any:
+        """Execute web search workflow - full implementation in one function.
+
+        Args:
+            query: Optional WebSearchQuery input
+
+        Returns:
+            Final report from state
+        """
         self.update_printer("research", "Executing web search workflow...")
 
         # Iterative loop: observe → evaluate → plan → execute multiple searches
@@ -87,3 +94,11 @@ class WebSearcherPipeline(BasePipeline):
         await self.writer_agent(self.context.state.findings_text())
 
         self.end_final_report()
+
+        # Return final result
+        final_result = self.context.state.final_report
+
+        if self.reporter is not None:
+            self.reporter.set_final_result(final_result)
+
+        return final_result

@@ -1,11 +1,9 @@
 """High-level execution patterns for common pipeline workflows."""
 
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from loguru import logger
-
-from agentz.runner.utils import record_structured_payload, serialize_output
 
 
 async def execute_tool_plan(
@@ -117,87 +115,3 @@ async def execute_tools(
         )
 
 
-async def run_manager_tool_loop(
-    manager_agents: Dict[str, Any],
-    tool_agents: Dict[str, Any],
-    workflow: List[str],
-    context: Any,
-    agent_step_fn: Any,
-    run_iterative_loop_fn: Any,
-    update_printer_fn: Optional[Any] = None,
-) -> Any:
-    """Execute standard manager-tool iterative pattern.
-
-    This pattern implements: observe → evaluate → route → execute tools → repeat.
-
-    Args:
-        manager_agents: Dict of manager agents (observe, evaluate, routing, writer)
-        tool_agents: Dict of tool agents
-        workflow: List of manager agent names to execute in order (e.g., ["observe", "evaluate", "routing"])
-        context: Pipeline context with state
-        agent_step_fn: Function to execute agent steps
-        run_iterative_loop_fn: Function to run iterative loop
-        update_printer_fn: Optional function for printer updates
-
-    Returns:
-        Result from final step
-
-    Example:
-        result = await run_manager_tool_loop(
-            manager_agents=self.manager_agents,
-            tool_agents=self.tool_agents,
-            workflow=["observe", "evaluate", "routing"],
-            context=self.context,
-            agent_step_fn=self.agent_step,
-            run_iterative_loop_fn=self.run_iterative_loop,
-            update_printer_fn=self.update_printer,
-        )
-    """
-    async def iteration_step(iteration, group_id: str):
-        """Execute manager workflow + tool execution."""
-        previous_output = context.state.query
-
-        # Execute manager workflow in sequence
-        for agent_name in workflow:
-            agent = manager_agents.get(agent_name)
-            if agent is None:
-                logger.warning(f"Manager agent '{agent_name}' not found, skipping")
-                continue
-
-            output = await agent(previous_output)
-
-            # Record observation for first step
-            if agent_name == workflow[0]:
-                iteration.observation = serialize_output(output)
-
-            record_structured_payload(context.state, output, context_label=agent_name)
-            previous_output = output
-
-        # Execute tools if not complete
-        if not context.state.complete and previous_output:
-            await execute_tools(
-                previous_output,
-                tool_agents,
-                group_id,
-                context,
-                agent_step_fn,
-                update_printer_fn,
-            )
-
-    async def final_step(final_group: str):
-        """Generate final report."""
-        if update_printer_fn:
-            update_printer_fn("research", "Research workflow complete", is_done=True)
-        logger.info("Research workflow completed")
-
-        writer = manager_agents.get("writer")
-        if writer:
-            await writer(context.state.findings_text())
-
-    if update_printer_fn:
-        update_printer_fn("research", "Executing research workflow...")
-
-    return await run_iterative_loop_fn(
-        iteration_body=iteration_step,
-        final_body=final_step
-    )

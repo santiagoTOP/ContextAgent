@@ -42,8 +42,16 @@ class SimplePipeline(BasePipeline):
         self.routing_agent = ContextAgent.from_profile(self, "routing", llm)
         self.tool_agent = ContextAgent.from_profile(self, "web_searcher", llm)
 
-    async def initialize_pipeline(self, query: Any) -> None:
-        """Ensure a SimpleQuery is available when the pipeline starts."""
+    async def run(self, query: Any = None) -> Any:
+        """Route the query once and execute the web searcher agent.
+
+        Args:
+            query: Optional SimpleQuery input
+
+        Returns:
+            Tool agent output
+        """
+        # Initialize query
         if query is None:
             prompt = self.config.prompt or "Analyze the dataset and provide insights."
             query = SimpleQuery(prompt=prompt)
@@ -52,44 +60,47 @@ class SimplePipeline(BasePipeline):
             prompt = getattr(query, "prompt", None) or str(query)
             query = SimpleQuery(prompt=prompt)
 
-        await super().initialize_pipeline(query)
+        # Set query in context
+        if query is not None:
+            self.context.state.set_query(query)
 
-    async def execute(self) -> ToolAgentOutput:
-        """Route the query once and execute the web searcher agent."""
         logger.info(f"User prompt: {self.config.prompt}")
 
         # Start single iteration for structured logging
-        _, group_id = self.begin_iteration(title="Single Pass")
-        try:
-            # Get pre-formatted query from state
-            query_str = self.context.state.formatted_query or ""
+        self.begin_iteration(title="Single Pass")
 
-            routing_input = RoutingInput(
-                query=query_str,
-                gap="Route the query to the web_searcher_agent",
-                history=self.context.state.iteration_history(include_current=False) or "",
-            )
+        # Get pre-formatted query from state
+        query_str = self.context.state.formatted_query or ""
 
-            routing_plan = await self.routing_agent(routing_input, group_id=group_id)
-            task = self._select_task(routing_plan)
+        routing_input = RoutingInput(
+            query=query_str,
+            gap="Route the query to the web_searcher_agent",
+            history=self.context.state.iteration_history(include_current=False) or "",
+        )
 
-            # Just pass the task query string directly - agent will handle it
-            tool_payload = task.query
+        routing_plan = await self.routing_agent(routing_input)
+        task = self._select_task(routing_plan)
 
-            result = await self.tool_agent(tool_payload, group_id=group_id)
+        # Just pass the task query string directly - agent will handle it
+        tool_payload = task.query
 
-            if self.state:
-                self.state.final_report = result.output
-                self.state.mark_research_complete()
+        result = await self.tool_agent(tool_payload)
 
-            logger.info("Simple pipeline completed")
-            return result
-        finally:
-            self.end_iteration(group_id)
+        if self.state:
+            self.state.final_report = result.output
+            self.state.mark_research_complete()
 
-    async def finalize(self, result: Any) -> Any:
-        """Return the tool output directly."""
-        return result
+        self.end_iteration()
+
+        logger.info("Simple pipeline completed")
+
+        # Return final result
+        final_result = result.output if hasattr(result, 'output') else result
+
+        if self.reporter is not None:
+            self.reporter.set_final_result(final_result)
+
+        return final_result
 
     @staticmethod
     def _select_task(plan: AgentSelectionPlan) -> AgentTask:
