@@ -516,6 +516,12 @@ class BasePipeline:
             # Phase 5: Finalization
             final_result = await self.finalize(result)
 
+            if self.reporter is not None:
+                try:
+                    self.reporter.set_final_result(final_result)
+                except Exception as exc:  # noqa: BLE001 - log and continue
+                    logger.debug(f"Failed to persist final report: {exc}")
+
             return final_result
 
     # ============================================

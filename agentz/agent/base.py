@@ -341,6 +341,7 @@ class ContextAgent(Agent[TContext]):
 
             # Automatic iteration tracking based on role
             if self._role and hasattr(self._pipeline, 'context'):
+                state = getattr(self._pipeline.context, "state", None)
                 try:
                     iteration = self._pipeline.context.current_iteration
 
@@ -354,6 +355,19 @@ class ContextAgent(Agent[TContext]):
                 except Exception:
                     # Silently skip if context/iteration not available
                     pass
+
+                if state is not None and self._role == "writer":
+                    try:
+                        if output is not None:
+                            state.final_report = self._pipeline._serialize_output(output)
+                        elif state.final_report is None:
+                            state.final_report = ""
+                    except Exception:
+                        # If serialization fails, fall back to string coercion
+                        if output is not None:
+                            state.final_report = str(output)
+                        elif state.final_report is None:
+                            state.final_report = ""
 
             return output
 
