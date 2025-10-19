@@ -85,28 +85,6 @@ class AgentExecutor:
         """
         self.tracker = tracker
 
-    async def execute_step(self, step: AgentStep) -> Any:
-        """Execute an AgentStep.
-
-        Args:
-            step: AgentStep to execute
-
-        Returns:
-            Parsed output if output_model provided, otherwise Runner result
-        """
-        instructions = step.get_instructions()
-
-        return await self.agent_step(
-            agent=step.agent,
-            instructions=instructions,
-            span_name=step.span_name,
-            span_type=step.span_type,
-            output_model=step.output_model,
-            sync=step.sync,
-            printer_key=step.printer_config.key if step.printer_config else None,
-            printer_title=step.printer_config.title if step.printer_config else None,
-            **step.span_kwargs
-        )
 
     async def agent_step(
         self,
