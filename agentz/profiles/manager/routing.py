@@ -70,7 +70,7 @@ KNOWLEDGE GAP TO ADDRESS:
 {gap}
 
 HISTORY OF ACTIONS, FINDINGS AND THOUGHTS:
-{history}""",
+{conversation_history}""",
     output_schema=AgentSelectionPlan,
     tools=None,
     model=None

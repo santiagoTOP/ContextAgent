@@ -331,6 +331,8 @@ class ContextAgent(Agent[TContext]):
             if effective_group_id is None and hasattr(self._pipeline, '_current_group_id'):
                 effective_group_id = self._pipeline._current_group_id
 
+            # import ipdb
+            # ipdb.set_trace()
             result = await self._pipeline.agent_step(
                 agent=self,
                 instructions=instructions,
@@ -347,8 +349,12 @@ class ContextAgent(Agent[TContext]):
 
                     # Special handling for "observe" role - set iteration.observation
                     if self._role == "observe":
-                        serialized = self._pipeline._serialize_output(output)
-                        iteration.observation = serialized
+                        # Extract observations field if output is a BaseModel with that field
+                        if isinstance(output, BaseModel) and hasattr(output, 'observations'):
+                            iteration.observation = output.observations
+                        else:
+                            serialized = self._pipeline._serialize_output(output)
+                            iteration.observation = serialized
 
                     # Record structured payload for all roles
                     self._pipeline._record_structured_payload(output, context_label=self._role)

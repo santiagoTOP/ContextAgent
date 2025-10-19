@@ -34,7 +34,7 @@ ORIGINAL QUERY:
 {query}
 
 HISTORY OF ACTIONS, FINDINGS AND THOUGHTS:
-{history}""",
+{conversation_history}""",
     output_schema=EvaluateOutput,
     tools=None,
     model=None

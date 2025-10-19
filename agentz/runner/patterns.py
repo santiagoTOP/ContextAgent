@@ -35,8 +35,6 @@ async def execute_tool_plan(
 
     async def run_single(task: Any) -> ToolAgentOutput:
         agent = tool_agents.get(task.agent)
-        # import ipdb
-        # ipdb.set_trace()
         if agent is None:
             output = ToolAgentOutput(
                 output=f"No implementation found for agent {task.agent}",
@@ -61,6 +59,8 @@ async def execute_tool_plan(
             printer_title=f"Tool: {task.agent}",
             printer_group_id=group_id,
         )
+        # import ipdb
+        # ipdb.set_trace()
 
         if isinstance(raw_result, ToolAgentOutput):
             output = raw_result
