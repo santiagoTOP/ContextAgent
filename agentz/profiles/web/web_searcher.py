@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from agentz.profiles.base import Profile, ToolAgentOutput
-
-from agentz.tools.web_tools.search import web_search_tool
+from agentz.tools.web_tools import web_search
 
 # Profile instance for web searcher agent
 web_searcher_profile = Profile(
@@ -28,6 +27,6 @@ Only output JSON. Follow the JSON schema below. Do not output anything else. I w
 """,
     runtime_template="{query}",
     output_schema=ToolAgentOutput,
-    tools=[web_search_tool],
+    tools=[web_search],
     model=None
 )

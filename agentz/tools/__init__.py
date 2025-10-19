@@ -12,7 +12,7 @@ from .data_tools import (
 
 # Re-export web tools
 from .web_tools import (
-    web_search_tool,
+    web_search,
     crawl_website,
 )
 
@@ -23,6 +23,6 @@ __all__ = [
     "train_model",
     "evaluate_model",
     "create_visualization",
-    "web_search_tool",
+    "web_search",
     "crawl_website",
 ]
