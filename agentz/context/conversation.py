@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import time
-from typing import Any, ClassVar, Dict, Iterable, List, Optional, Set, Tuple, Type
+from typing import Any, ClassVar, Dict, Iterable, List, Optional, Set, Tuple, Type, Callable
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError, create_model
 from agentz.profiles.base import Profile, ToolAgentOutput
 
+from agentz.context.utils import identity_wrapper
 
 class BaseIterationRecord(BaseModel):
     """State captured for a single iteration of the research loop."""
@@ -105,6 +106,9 @@ class ConversationState(BaseModel):
 
     def start_timer(self) -> None:
         self.started_at = time.time()
+
+    def get_with_wrapper(self, key: str, wrapper: Callable[[Any], Any] = identity_wrapper) -> Any:
+        return wrapper(getattr(self, key))
 
     @property
     def iteration(self) -> str:

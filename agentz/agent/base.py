@@ -10,6 +10,7 @@ from agents import Agent, RunResult
 from agents.run_context import TContext
 from agentz.llm.llm_setup import model_supports_json_and_tool_calls
 from agentz.utils.parsers import create_type_parser
+from agentz.context.utils import identity_wrapper
 
 PromptBuilder = Callable[[Any, Any, "ContextAgent"], str]
 
@@ -41,6 +42,16 @@ class ContextAgent(Agent[TContext]):
         self.auto_inject_context = auto_inject_context  # Whether to automatically inject context in __call__
         self._pipeline = None  # Optional pipeline reference for context-aware execution
         self._role = None  # Optional role identifier for automatic iteration tracking
+        self._context_wrappers = {}
+    
+    def register_context_wrapper(self, field_name: str, wrapper: Callable[[Any], Any] = identity_wrapper) -> None:
+        """Register a context wrapper for a context field."""
+        self._context_wrappers[field_name] = wrapper
+
+    def get_context_with_wrapper(self, field_name: str) -> Any:
+        """Get a context wrapper for a field name."""
+        return self._context.get_with_wrapper(field_name, self._context_wrappers.get(field_name, identity_wrapper))
+
 
     @classmethod
     def from_profile(cls, pipeline: Any, role: str, llm: str) -> "ContextAgent":
@@ -115,6 +126,7 @@ class ContextAgent(Agent[TContext]):
         if isinstance(payload, dict):
             return payload
         return {"input": payload}
+
 
     def build_contextual_instructions(self, payload: Any = None) -> str:
         """Build instructions with automatic context injection from pipeline state.
