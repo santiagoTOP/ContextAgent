@@ -42,21 +42,61 @@ class WebSearcherPipeline(BasePipeline):
         self.context = Context(["profiles", "states"])
         llm = self.config.llm.main_model
 
-        # Create manager agents - automatically bound to pipeline with role
-        self.observe_agent = ContextAgent.from_profile(self, "observe", llm)
-        self.evaluate_agent = ContextAgent.from_profile(self, "evaluate", llm)
-        self.planning_agent = ContextAgent.from_profile(self, "web_planning", llm)
-        self.writer_agent = ContextAgent.from_profile(self, "writer", llm)
+        # Create callbacks for agent execution
+        callbacks = {
+            'agent_step': self.agent_step,
+            'get_current_group_id': lambda: self._current_group_id,
+        }
 
-        # Create tool agents as dictionary - automatically bound to pipeline
-        tool_agents = [
+        # Create manager agents with explicit dependencies
+        self.observe_agent = ContextAgent.from_profile(
+            context=self.context,
+            config=self.config,
+            role="observe",
+            llm=llm,
+            callbacks=callbacks,
+        )
+        self.evaluate_agent = ContextAgent.from_profile(
+            context=self.context,
+            config=self.config,
+            role="evaluate",
+            llm=llm,
+            callbacks=callbacks,
+        )
+        self.planning_agent = ContextAgent.from_profile(
+            context=self.context,
+            config=self.config,
+            role="web_planning",
+            llm=llm,
+            callbacks=callbacks,
+        )
+        self.writer_agent = ContextAgent.from_profile(
+            context=self.context,
+            config=self.config,
+            role="writer",
+            llm=llm,
+            callbacks=callbacks,
+        )
+
+        # Create tool agents as dictionary
+        tool_agent_names = [
             "web_searcher",
             "web_crawler",
         ]
         self.tool_agents = {
-            f"{name}_agent": ContextAgent.from_profile(self, name, llm)
-            for name in tool_agents
+            f"{name}_agent": ContextAgent.from_profile(
+                context=self.context,
+                config=self.config,
+                role=name,
+                llm=llm,
+                callbacks=callbacks,
+            )
+            for name in tool_agent_names
         }
+
+        # Update all agents with tool_agents reference
+        for agent in [self.observe_agent, self.evaluate_agent, self.planning_agent, self.writer_agent]:
+            agent._tool_agents = self.tool_agents
 
     async def run(self, query: Any = None) -> Any:
         """Execute web search workflow - full implementation in one function.

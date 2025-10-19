@@ -38,9 +38,27 @@ class SimplePipeline(BasePipeline):
         self.context = Context(["profiles", "states"])
         llm = self.config.llm.main_model
 
-        # Bind agents from registered profiles
-        self.routing_agent = ContextAgent.from_profile(self, "routing", llm)
-        self.tool_agent = ContextAgent.from_profile(self, "web_searcher", llm)
+        # Create callbacks for agent execution
+        callbacks = {
+            'agent_step': self.agent_step,
+            'get_current_group_id': lambda: self._current_group_id,
+        }
+
+        # Bind agents from registered profiles with explicit dependencies
+        self.routing_agent = ContextAgent.from_profile(
+            context=self.context,
+            config=self.config,
+            role="routing",
+            llm=llm,
+            callbacks=callbacks,
+        )
+        self.tool_agent = ContextAgent.from_profile(
+            context=self.context,
+            config=self.config,
+            role="web_searcher",
+            llm=llm,
+            callbacks=callbacks,
+        )
 
     async def run(self, query: Any = None) -> Any:
         """Route the query once and execute the web searcher agent.
