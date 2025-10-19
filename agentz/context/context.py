@@ -11,7 +11,6 @@ class Context:
 
     # Constants for iteration group IDs
     ITERATION_GROUP_PREFIX = "iter"
-    FINAL_GROUP_ID = "iter-final"
 
     def __init__(
         self,
@@ -77,15 +76,3 @@ class Context:
     def mark_iteration_complete(self) -> None:
         """Mark the current iteration as complete."""
         self._state.mark_iteration_complete()
-
-    def begin_final_report(self) -> Tuple[None, str]:
-        """Begin final report phase and return group_id.
-
-        Returns:
-            Tuple of (None, group_id) where group_id is the final report group ID
-        """
-        return None, self.FINAL_GROUP_ID
-
-    def mark_final_complete(self) -> None:
-        """Mark final report as complete."""
-        pass  # No state change needed for final report

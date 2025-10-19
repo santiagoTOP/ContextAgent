@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from agentz.agent.base import ContextAgent
 from agentz.context.context import Context
+from agentz.runner import execute_tools
 from pipelines.base import BasePipeline, autotracing
 
 
@@ -68,8 +69,8 @@ class DataScientistPipeline(BasePipeline):
 
         # Phase 2: Iterative loop - observe → evaluate → route → tools
         while self.iteration < self.max_iterations and not self.context.state.complete:
-            # Begin iteration - group_id managed automatically
-            self.begin_iteration()
+            # Smart iteration management - single command!
+            self.iterate()
 
             # Observe → Evaluate → Route → Tools
             observe_output = await self.observe_agent(query)
@@ -77,18 +78,18 @@ class DataScientistPipeline(BasePipeline):
 
             if not self.context.state.complete:
                 routing_output = await self.routing_agent(evaluate_output)
-                await self._execute_tools(routing_output, self.tool_agents)
-
-            # End iteration - group_id managed automatically
-            self.end_iteration()
+                await execute_tools(
+                    route_plan=routing_output,
+                    tool_agents=self.tool_agents,
+                    group_id=self._current_group_id,
+                    context=self.context,
+                    agent_step_fn=self.agent_step,
+                    update_printer_fn=self.update_printer,
+                )
 
         # Phase 3: Final report generation
-        self.begin_final_report()
         self.update_printer("research", "Research workflow complete", is_done=True)
-
         await self.writer_agent(self.context.state.findings_text())
-
-        self.end_final_report()
 
         # Phase 4: Finalization
         final_result = self.context.state.final_report

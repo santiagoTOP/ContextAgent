@@ -8,24 +8,17 @@ from typing import Any, Callable, Dict, Mapping, Optional, Union
 from loguru import logger
 from rich.console import Console
 
-from agents.tracing.create import function_span
 from agentz.utils.config import BaseConfig, resolve_config
 from agentz.runner import (
     AgentExecutor,
     RuntimeTracker,
-    execute_tools,
 )
 from agentz.artifacts import RunReporter
 from agentz.utils import Printer, get_experiment_timestamp
 
 
-
 class BasePipeline:
     """Base class for all pipelines with common configuration and setup."""
-
-    # Constants for iteration group IDs
-    ITERATION_GROUP_PREFIX = "iter"
-    FINAL_GROUP_ID = "iter-final"
 
     def __init__(self, config: Union[str, Path, Mapping[str, Any], BaseConfig]):
         """Initialize the pipeline using a single configuration input.
@@ -409,13 +402,6 @@ class BasePipeline:
             if created_printer or created_reporter:
                 self.stop_printer()
 
-    async def run_span_step(self, *args, **kwargs) -> Any:
-        """Execute a step with span context and printer updates.
-
-        Delegates to AgentExecutor.run_span_step(). See AgentExecutor.run_span_step() for full documentation.
-        """
-        return await self.executor.run_span_step(*args, **kwargs)
-
     # ============================================
     # Iteration & Group Management
     # ============================================
@@ -464,71 +450,46 @@ class BasePipeline:
         self.end_group(self._current_group_id, is_done=is_done)
         self._current_group_id = None
 
-    def begin_final_report(
+    def iterate(
         self,
-        title: str = "Final Report",
+        start_index: int = 1,
+        title: Optional[str] = None,
         border_style: str = "white"
-    ) -> None:
-        """Begin the final report phase with its associated group.
+    ) -> Any:
+        """Smart iteration management - auto-creates and advances iterations.
 
-        Combines context.begin_final_report() + start_group() into a single call.
-        Automatically manages the group_id internally.
+        Single-command iteration handling that automatically:
+        - Creates first iteration on first call
+        - Ends previous iteration and starts next on subsequent calls
+        - Supports custom starting index
 
         Args:
-            title: Title for the final report group (default: "Final Report")
+            start_index: Starting iteration number (default: 1)
+            title: Optional custom title (default: "Iteration {index}")
             border_style: Border style for the group (default: "white")
-        """
-        _, group_id = self.context.begin_final_report()
-        self._current_group_id = group_id
-        self.start_group(group_id, title=title, border_style=border_style)
-
-    def end_final_report(self, is_done: bool = True) -> None:
-        """End the final report phase and its associated group.
-
-        Combines context.mark_final_complete() + end_group() into a single call.
-        Automatically uses the internally managed group_id.
-
-        Args:
-            is_done: Whether the final report completed successfully (default: True)
-        """
-        self.context.mark_final_complete()
-        self.end_group(self._current_group_id, is_done=is_done)
-        self._current_group_id = None
-
-    def prepare_query(
-        self,
-        content: str,
-        step_key: str = "prepare_query",
-        span_name: str = "prepare_research_query",
-        start_msg: str = "Preparing research query...",
-        done_msg: str = "Research query prepared"
-    ) -> str:
-        """Prepare query/content with span context and printer updates.
-
-        Args:
-            content: The query/content to prepare
-            step_key: Printer status key
-            span_name: Name for the span
-            start_msg: Start message for printer
-            done_msg: Completion message for printer
 
         Returns:
-            The prepared content
+            The iteration record
+
+        Example:
+            while self.iteration < self.max_iterations:
+                self.iterate()  # Single command!
+                # ... do work ...
         """
-        self.update_printer(step_key, start_msg)
+        # If no iterations exist, create first one
+        if not self.context.state.iterations:
+            iteration_record = self.begin_iteration(title=title, border_style=border_style)
+            # Override iteration index if custom start requested
+            if start_index != 1:
+                self.iteration = start_index
+                iteration_record.index = start_index
+            return iteration_record
 
-        with self.span_context(function_span, name=span_name) as span:
-            logger.debug(f"Prepared {span_name}: {content}")
+        # Close previous iteration if still open, start new one
+        if not self.context.state.current_iteration.is_complete():
+            self.end_iteration()
 
-            if span and hasattr(span, "set_output"):
-                span.set_output({"output_preview": content[:200]})
-
-        self.update_printer(step_key, done_msg, is_done=True)
-        return content
-
-    def _log_message(self, message: str) -> None:
-        """Log a message using the configured logger."""
-        logger.info(message)
+        return self.begin_iteration(title=title, border_style=border_style)
 
     # ============================================
     # Execution Entry Points
@@ -559,32 +520,6 @@ class BasePipeline:
     # ============================================
     # Integration with Runner Module
     # ============================================
-
-    async def _execute_tools(
-        self,
-        route_plan: Any,
-        tool_agents: Dict[str, Any],
-        group_id: Optional[str] = None,
-    ) -> None:
-        """Execute tool agents based on routing plan.
-
-        Delegates to runner.patterns.execute_tools.
-
-        Args:
-            route_plan: The routing plan (can be AgentSelectionPlan or other)
-            tool_agents: Dict mapping agent names to agent instances
-            group_id: Optional group ID for printer updates. If None, uses pipeline's current group.
-        """
-        effective_group_id = group_id if group_id is not None else self._current_group_id
-        await execute_tools(
-            route_plan=route_plan,
-            tool_agents=tool_agents,
-            group_id=effective_group_id,
-            context=self.context,
-            agent_step_fn=self.agent_step,
-            update_printer_fn=self.update_printer,
-        )
-
 
 def autotracing(
     additional_logging: Optional[Callable] = None,

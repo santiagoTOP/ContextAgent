@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from agentz.agent.base import ContextAgent
 from agentz.context.context import Context
+from agentz.runner import execute_tools
 from pipelines.base import BasePipeline
 
 
@@ -82,18 +83,21 @@ class WebSearcherPipeline(BasePipeline):
 
             if not self.context.state.complete:
                 planning_output = await self.planning_agent(evaluate_output)
-                await self._execute_tools(planning_output, self.tool_agents)
+                await execute_tools(
+                    route_plan=planning_output,
+                    tool_agents=self.tool_agents,
+                    group_id=self._current_group_id,
+                    context=self.context,
+                    agent_step_fn=self.agent_step,
+                    update_printer_fn=self.update_printer,
+                )
 
             # End iteration - group_id managed automatically
             self.end_iteration()
 
-        # Final report - group_id managed automatically
-        self.begin_final_report()
+        # Final report
         self.update_printer("research", "Web search workflow complete", is_done=True)
-
         await self.writer_agent(self.context.state.findings_text())
-
-        self.end_final_report()
 
         # Return final result
         final_result = self.context.state.final_report
