@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from agentz.agent.base import ContextAgent
 from agentz.context.context import Context
+from agentz.runner import execute_tools
 from pipelines.base import BasePipeline, autotracing
 
 
@@ -38,14 +39,34 @@ class DataScientistPipeline(BasePipeline):
         self.context = Context(["profiles", "states"])
         llm = self.config.llm.main_model
 
-        # Create manager agents - automatically bound to pipeline with role
-        self.observe_agent = ContextAgent.from_profile(self, "observe", llm)
-        self.evaluate_agent = ContextAgent.from_profile(self, "evaluate", llm)
-        self.routing_agent = ContextAgent.from_profile(self, "routing", llm)
-        self.writer_agent = ContextAgent.from_profile(self, "writer", llm)
+        # Create manager agents with explicit dependencies
+        self.observe_agent = ContextAgent.from_profile(
+            context=self.context,
+            config=self.config,
+            role="observe",
+            llm=llm,
+        )
+        self.evaluate_agent = ContextAgent.from_profile(
+            context=self.context,
+            config=self.config,
+            role="evaluate",
+            llm=llm,
+        )
+        self.routing_agent = ContextAgent.from_profile(
+            context=self.context,
+            config=self.config,
+            role="routing",
+            llm=llm,
+        )
+        self.writer_agent = ContextAgent.from_profile(
+            context=self.context,
+            config=self.config,
+            role="writer",
+            llm=llm,
+        )
 
-        # Create tool agents as dictionary - automatically bound to pipeline
-        tool_agents = [
+        # Create tool agents as dictionary
+        tool_agent_names = [
             "data_loader_agent",
             "data_analysis_agent",
             "preprocessing_agent",
@@ -54,66 +75,50 @@ class DataScientistPipeline(BasePipeline):
             "visualization_agent",
         ]
         self.tool_agents = {
-            f"{name}": ContextAgent.from_profile(self, name.removesuffix("_agent"), llm)
-            for name in tool_agents
+            name: ContextAgent.from_profile(
+                context=self.context,
+                config=self.config,
+                role=name.removesuffix("_agent"),
+                llm=llm,
+            )
+            for name in tool_agent_names
         }
 
+        # Update all agents with tool_agents reference
+        for agent in [self.observe_agent, self.evaluate_agent, self.routing_agent, self.writer_agent]:
+            agent._tool_agents = self.tool_agents
+
     @autotracing()
-    async def run(self, query: Any = None) -> Any:
-        """Execute data science workflow - full pipeline logic in one method.
-
-        Implements the complete workflow:
-        1. Initialize query in state
-        2. Iterative loop: observe → evaluate → route → tools
-        3. Final report generation
-        4. Finalization
-
-        This method demonstrates the @autotracing() decorator pattern, which automatically
-        handles pipeline initialization (reporter, printer, tracing) and cleanup.
-
-        For advanced use cases requiring explicit control, you can still use the context manager:
-            with self.run_context(enable_printer=False):
-                # custom logic here
-
-        Args:
-            query: DataScienceQuery input
-
-        Returns:
-            Final report from state
-        """
+    async def run(self, query: DataScienceQuery) -> Any:
         # Phase 1: Initialize query in state
-        if query is not None:
-            self.context.state.set_query(query)
-            formatted_query = query.format()
-        else:
-            formatted_query = ""
+        self.context.state.set_query(query)
 
         self.update_printer("initialization", "Pipeline initialized", is_done=True)
         self.update_printer("research", "Executing research workflow...")
 
         # Phase 2: Iterative loop - observe → evaluate → route → tools
         while self.iteration < self.max_iterations and not self.context.state.complete:
-            # Begin iteration - group_id managed automatically
-            self.begin_iteration()
+            # Smart iteration management - single command!
+            self.iterate()
 
             # Observe → Evaluate → Route → Tools
-            observe_output = await self.observe_agent(formatted_query)
-            evaluate_output = await self.evaluate_agent(observe_output)
+            observe_output = await self.observe_agent(query, group_id=self._current_group_id, tracker=self.runtime_tracker)
+            evaluate_output = await self.evaluate_agent(observe_output, group_id=self._current_group_id, tracker=self.runtime_tracker)
 
             if not self.context.state.complete:
-                routing_output = await self.routing_agent(evaluate_output)
-                await self._execute_tools(routing_output, self.tool_agents)
-
-            # End iteration - group_id managed automatically
-            self.end_iteration()
+                routing_output = await self.routing_agent(evaluate_output, group_id=self._current_group_id, tracker=self.runtime_tracker)
+                await execute_tools(
+                    route_plan=routing_output,
+                    tool_agents=self.tool_agents,
+                    group_id=self._current_group_id,
+                    context=self.context,
+                    agent_step_fn=self.agent_step,
+                    update_printer_fn=self.update_printer,
+                )
 
         # Phase 3: Final report generation
-        self.begin_final_report()
         self.update_printer("research", "Research workflow complete", is_done=True)
-
-        await self.writer_agent(self.context.state.findings_text())
-
-        self.end_final_report()
+        await self.writer_agent(self.context.state.findings_text(), group_id=self._current_group_id, tracker=self.runtime_tracker)
 
         # Phase 4: Finalization
         final_result = self.context.state.final_report

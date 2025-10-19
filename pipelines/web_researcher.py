@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from agentz.agent.base import ContextAgent
 from agentz.context.context import Context
+from agentz.runner import execute_tools
 from pipelines.base import BasePipeline
 
 
@@ -41,21 +42,50 @@ class WebSearcherPipeline(BasePipeline):
         self.context = Context(["profiles", "states"])
         llm = self.config.llm.main_model
 
-        # Create manager agents - automatically bound to pipeline with role
-        self.observe_agent = ContextAgent.from_profile(self, "observe", llm)
-        self.evaluate_agent = ContextAgent.from_profile(self, "evaluate", llm)
-        self.planning_agent = ContextAgent.from_profile(self, "web_planning", llm)
-        self.writer_agent = ContextAgent.from_profile(self, "writer", llm)
+        # Create manager agents with explicit dependencies
+        self.observe_agent = ContextAgent.from_profile(
+            context=self.context,
+            config=self.config,
+            role="observe",
+            llm=llm,
+        )
+        self.evaluate_agent = ContextAgent.from_profile(
+            context=self.context,
+            config=self.config,
+            role="evaluate",
+            llm=llm,
+        )
+        self.planning_agent = ContextAgent.from_profile(
+            context=self.context,
+            config=self.config,
+            role="web_planning",
+            llm=llm,
+        )
+        self.writer_agent = ContextAgent.from_profile(
+            context=self.context,
+            config=self.config,
+            role="writer",
+            llm=llm,
+        )
 
-        # Create tool agents as dictionary - automatically bound to pipeline
-        tool_agents = [
+        # Create tool agents as dictionary
+        tool_agent_names = [
             "web_searcher",
             "web_crawler",
         ]
         self.tool_agents = {
-            f"{name}_agent": ContextAgent.from_profile(self, name, llm)
-            for name in tool_agents
+            f"{name}_agent": ContextAgent.from_profile(
+                context=self.context,
+                config=self.config,
+                role=name,
+                llm=llm,
+            )
+            for name in tool_agent_names
         }
+
+        # Update all agents with tool_agents reference
+        for agent in [self.observe_agent, self.evaluate_agent, self.planning_agent, self.writer_agent]:
+            agent._tool_agents = self.tool_agents
 
     async def run(self, query: Any = None) -> Any:
         """Execute web search workflow - full implementation in one function.
@@ -77,23 +107,26 @@ class WebSearcherPipeline(BasePipeline):
             query = self.context.state.formatted_query or ""
 
             # Observe → Evaluate → Plan → Execute Multiple Tools
-            observe_output = await self.observe_agent(query)
-            evaluate_output = await self.evaluate_agent(observe_output)
+            observe_output = await self.observe_agent(query, group_id=self._current_group_id, tracker=self.runtime_tracker)
+            evaluate_output = await self.evaluate_agent(observe_output, group_id=self._current_group_id, tracker=self.runtime_tracker)
 
             if not self.context.state.complete:
-                planning_output = await self.planning_agent(evaluate_output)
-                await self._execute_tools(planning_output, self.tool_agents)
+                planning_output = await self.planning_agent(evaluate_output, group_id=self._current_group_id, tracker=self.runtime_tracker)
+                await execute_tools(
+                    route_plan=planning_output,
+                    tool_agents=self.tool_agents,
+                    group_id=self._current_group_id,
+                    context=self.context,
+                    agent_step_fn=self.agent_step,
+                    update_printer_fn=self.update_printer,
+                )
 
             # End iteration - group_id managed automatically
             self.end_iteration()
 
-        # Final report - group_id managed automatically
-        self.begin_final_report()
+        # Final report
         self.update_printer("research", "Web search workflow complete", is_done=True)
-
-        await self.writer_agent(self.context.state.findings_text())
-
-        self.end_final_report()
+        await self.writer_agent(self.context.state.findings_text(), group_id=self._current_group_id, tracker=self.runtime_tracker)
 
         # Return final result
         final_result = self.context.state.final_report

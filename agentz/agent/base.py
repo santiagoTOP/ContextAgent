@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 from typing import Any, Callable, Optional
 
@@ -26,6 +25,9 @@ class ContextAgent(Agent[TContext]):
         default_span_type: str = "agent",
         output_parser: Optional[Callable[[str], Any]] = None,
         auto_inject_context: bool = True,
+        context: Optional[Any] = None,
+        config: Optional[Any] = None,
+        tool_agents: Optional[dict[str, Any]] = None,
         **kwargs: Any,
     ) -> None:
         if output_model and kwargs.get("output_type"):
@@ -40,7 +42,9 @@ class ContextAgent(Agent[TContext]):
         self.default_span_type = default_span_type
         self.output_parser = output_parser
         self.auto_inject_context = auto_inject_context  # Whether to automatically inject context in __call__
-        self._pipeline = None  # Optional pipeline reference for context-aware execution
+        self._context = context  # Context reference for state access
+        self._config = config  # Config reference for settings access
+        self._tool_agents = tool_agents  # Available tool agents
         self._role = None  # Optional role identifier for automatic iteration tracking
         self._context_wrappers = {}
     
@@ -54,26 +58,39 @@ class ContextAgent(Agent[TContext]):
 
 
     @classmethod
-    def from_profile(cls, pipeline: Any, role: str, llm: str) -> "ContextAgent":
-        """Create a ContextAgent from a pipeline context and role.
+    def from_profile(
+        cls,
+        context: Any,
+        config: Any,
+        role: str,
+        llm: str,
+        tool_agents: Optional[dict[str, Any]] = None,
+    ) -> "ContextAgent":
+        """Create a ContextAgent from context and role.
 
-        Automatically looks up the profile from pipeline.context.profiles[role],
-        derives agent name, and binds the agent to the pipeline with the role.
+        Automatically looks up the profile from context.profiles[role],
+        derives agent name, and configures the agent with explicit dependencies.
 
         Args:
-            pipeline: Pipeline instance (must have context.profiles attribute)
+            context: Context instance (must have profiles attribute)
+            config: Config instance for settings access
             role: Role name that maps to a profile key (e.g., "observe", "evaluate")
             llm: LLM model name (e.g., "gpt-4", "claude-3-5-sonnet")
+            tool_agents: Optional dictionary of available tool agents
 
         Returns:
-            ContextAgent instance configured from the profile and bound to pipeline
+            ContextAgent instance configured from the profile
 
         Example:
-            agent = ContextAgent.from_profile(self, "observe", "gpt-4")
-            # Looks up profiles["observe"], creates agent, and binds it to pipeline
+            agent = ContextAgent.from_profile(
+                context=self.context,
+                config=self.config,
+                role="observe",
+                llm="gpt-4",
+            )
         """
-        # Look up profile from pipeline's context
-        profile = pipeline.context.profiles[role]
+        # Look up profile from context
+        profile = context.profiles[role]
 
         # Auto-derive name from role
         agent_name = role + "_agent" if role != "agent" else "agent"
@@ -102,10 +119,12 @@ class ContextAgent(Agent[TContext]):
             tools=tools,
             model=llm,
             output_parser=output_parser,
+            context=context,
+            config=config,
+            tool_agents=tool_agents,
         )
 
-        # Bind agent to pipeline with role
-        agent._pipeline = pipeline
+        # Set role and profile for runtime_template access
         agent._role = role
         agent._profile = profile  # Store profile for runtime_template access
 
@@ -144,7 +163,7 @@ class ContextAgent(Agent[TContext]):
             Formatted instructions string with full context
 
         Note:
-            This method requires self._pipeline to be set and have a context.state attribute.
+            This method requires self._context to be set.
         """
         # Convert payload to string
         if isinstance(payload, str):
@@ -159,12 +178,12 @@ class ContextAgent(Agent[TContext]):
         else:
             current_input = str(payload)
 
-        # Get context from pipeline
-        if self._pipeline is None or not hasattr(self._pipeline, 'context'):
-            # Fallback to regular instruction building if no pipeline context
+        # Get context
+        if self._context is None:
+            # Fallback to regular instruction building if no context
             return current_input or ""
 
-        state = self._pipeline.context.state
+        state = self._context.state
 
         # Check if profile has runtime_template
         profile = getattr(self, '_profile', None)
@@ -192,27 +211,27 @@ class ContextAgent(Agent[TContext]):
                     continue
 
                 if placeholder == 'data_path':
-                    # Check pipeline config for data path
-                    if self._pipeline and hasattr(self._pipeline, 'config'):
-                        data_path = self._pipeline.config.data.get('path', 'N/A') if hasattr(self._pipeline.config, 'data') else 'N/A'
+                    # Check config for data path
+                    if self._config and hasattr(self._config, 'data'):
+                        data_path = self._config.data.get('path', 'N/A')
                         context_dict[placeholder] = data_path
                     else:
                         context_dict[placeholder] = 'N/A'
                     continue
 
                 if placeholder == 'user_prompt':
-                    # Check pipeline config for prompt or use state.query
-                    if self._pipeline and hasattr(self._pipeline, 'config'):
-                        user_prompt = self._pipeline.config.data.get('prompt', '') if hasattr(self._pipeline.config, 'data') else ''
+                    # Check config for prompt or use state.query
+                    if self._config and hasattr(self._config, 'data'):
+                        user_prompt = self._config.data.get('prompt', '')
                         context_dict[placeholder] = user_prompt if user_prompt else (str(state.query) if state.query else '')
                     else:
                         context_dict[placeholder] = str(state.query) if state.query else ''
                     continue
 
                 if placeholder == 'available_agents':
-                    # Check pipeline for tool_agents
-                    if self._pipeline and hasattr(self._pipeline, 'tool_agents') and self._pipeline.tool_agents:
-                        agents_list = ', '.join(self._pipeline.tool_agents.keys())
+                    # Check for tool_agents
+                    if self._tool_agents:
+                        agents_list = ', '.join(self._tool_agents.keys())
                         context_dict[placeholder] = agents_list
                     else:
                         context_dict[placeholder] = 'N/A'
@@ -240,27 +259,33 @@ class ContextAgent(Agent[TContext]):
         return state.format_context_prompt(current_input=current_input)
 
 
-    async def __call__(self, payload: Any = None, group_id: Optional[str] = None) -> Any:
+    async def __call__(
+        self,
+        payload: Any = None,
+        *,
+        group_id: Optional[str] = None,
+        tracker: Optional[Any] = None,
+    ) -> Any:
         """Make ContextAgent callable directly.
 
         This allows usage like: result = await agent(input_data)
 
-        When called within a pipeline context (self._pipeline is set), uses the
-        pipeline's agent_step for full tracking/tracing. Otherwise, uses ContextRunner.
+        When called with tracker provided, uses the agent_step function for full
+        tracking/tracing. Otherwise, uses ContextRunner.
 
-        Note: When calling directly without pipeline context, input validation
+        Note: When calling directly without tracker, input validation
         is relaxed to allow string inputs even if agent has a defined input_model.
 
         Args:
             payload: Input data for the agent
-            group_id: Optional group ID for tracking. If None, automatically uses
-                     pipeline's current group (_current_group_id) when available.
+            group_id: Optional group ID for tracking. Must be provided explicitly when needed.
+            tracker: Optional RuntimeTracker for execution with tracking
 
         Returns:
             Parsed output if in pipeline context, otherwise RunResult
         """
         # Build instructions with automatic context injection if enabled
-        if self.auto_inject_context and self._pipeline is not None and hasattr(self._pipeline, 'context'):
+        if self.auto_inject_context and self._context is not None:
             instructions = self.build_contextual_instructions(payload)
         else:
             # Build prompt without validation
@@ -276,28 +301,26 @@ class ContextAgent(Agent[TContext]):
             else:
                 instructions = str(payload)
 
-        # If pipeline context is available, use it for full tracking
-        if self._pipeline is not None:
-            # Auto-default group_id to pipeline's current group if not provided
-            effective_group_id = group_id
-            if effective_group_id is None and hasattr(self._pipeline, '_current_group_id'):
-                effective_group_id = self._pipeline._current_group_id
-
-            # import ipdb
-            # ipdb.set_trace()
-            result = await self._pipeline.agent_step(
+        # If tracker is provided, use agent_step function for full tracking
+        if tracker:
+            from agentz.runner.executor import agent_step
+            
+            result = await agent_step(
+                tracker=tracker,
                 agent=self,
                 instructions=instructions,
-                group_id=effective_group_id,
+                group_id=group_id,
             )
             # Extract final output for cleaner API
             output = result.final_output if hasattr(result, 'final_output') else result
 
             # Automatic iteration tracking based on role
-            if self._role and hasattr(self._pipeline, 'context'):
-                state = getattr(self._pipeline.context, "state", None)
+            if self._role and self._context:
+                from agentz.runner.utils import serialize_output, record_structured_payload
+
+                state = getattr(self._context, "state", None)
                 try:
-                    iteration = self._pipeline.context.current_iteration
+                    iteration = self._context.current_iteration
 
                     # Special handling for "observe" role - set iteration.observation
                     if self._role == "observe":
@@ -305,11 +328,11 @@ class ContextAgent(Agent[TContext]):
                         if isinstance(output, BaseModel) and hasattr(output, 'observations'):
                             iteration.observation = output.observations
                         else:
-                            serialized = self._pipeline._serialize_output(output)
+                            serialized = serialize_output(output)
                             iteration.observation = serialized
 
                     # Record structured payload for all roles
-                    self._pipeline._record_structured_payload(output, context_label=self._role)
+                    record_structured_payload(state, output, context_label=self._role)
                 except Exception:
                     # Silently skip if context/iteration not available
                     pass
@@ -317,7 +340,7 @@ class ContextAgent(Agent[TContext]):
                 if state is not None and self._role == "writer":
                     try:
                         if output is not None:
-                            state.final_report = self._pipeline._serialize_output(output)
+                            state.final_report = serialize_output(output)
                         elif state.final_report is None:
                             state.final_report = ""
                     except Exception:
