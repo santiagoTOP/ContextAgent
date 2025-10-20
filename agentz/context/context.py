@@ -4,14 +4,13 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from agentz.context.conversation import BaseIterationRecord, ConversationState, create_conversation_state
 from agentz.profiles.base import Profile, load_all_profiles
-
+from agentz.context.base_context_module import BaseContextModule
 
 class Context:
     """Central coordinator for conversation state and iteration management."""
 
     # Constants for iteration group IDs
     ITERATION_GROUP_PREFIX = "iter"
-    FINAL_GROUP_ID = "iter-final"
 
     def __init__(
         self,
@@ -34,6 +33,7 @@ class Context:
             context = Context(state)
         """
         self.profiles: Optional[Dict[str, Profile]] = None
+        self.context_modules: Dict[str, BaseModel] = {}
 
         if isinstance(components, ConversationState):
             # Backward compatible: direct state initialization
@@ -57,6 +57,14 @@ class Context:
     def state(self) -> ConversationState:
         return self._state
 
+    def register_context_module(self, name: str, module: BaseContextModule) -> None:
+        self.context_modules[name] = module
+
+    def get_context_module(self, name: str) -> BaseModel:
+        if name not in self.context_modules:
+            raise ValueError(f"Context module {name} not found")
+        return self.context_modules[name]
+
     def begin_iteration(self) -> Tuple[BaseIterationRecord, str]:
         """Start a new iteration and return its record with group_id.
 
@@ -77,15 +85,3 @@ class Context:
     def mark_iteration_complete(self) -> None:
         """Mark the current iteration as complete."""
         self._state.mark_iteration_complete()
-
-    def begin_final_report(self) -> Tuple[None, str]:
-        """Begin final report phase and return group_id.
-
-        Returns:
-            Tuple of (None, group_id) where group_id is the final report group ID
-        """
-        return None, self.FINAL_GROUP_ID
-
-    def mark_final_complete(self) -> None:
-        """Mark final report as complete."""
-        pass  # No state change needed for final report
