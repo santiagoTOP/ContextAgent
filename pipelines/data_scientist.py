@@ -90,7 +90,7 @@ class DataScientistPipeline(BasePipeline):
 
             if not self.context.state.complete:
                 routing_output = await self.routing_agent(evaluate_output)
-                import ipdb; ipdb.set_trace()
+                # import ipdb; ipdb.set_trace()
                 plan_tasks = routing_output.tasks
 
                 if plan_tasks:
