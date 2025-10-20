@@ -10,12 +10,17 @@ AgentZ is a context-central multi-agent systems framework. AgentZ focuses on eff
 
 ## Features
 
-- **🎯 Context-Central Architecture** - All agents share and interact through centralized context state
+- **🎯 Context-Central Architecture** - All agents and pipelines are defined based on context operations
 - **🔄 Component Reusability** - Unified context design enables easy reuse of agents, tools, and flows
 - **📚 Declarative Flows** - Define complex multi-agent workflows through structured, declarative specifications
 - **🛠️ Stateful Execution** - Persistent conversation state tracks all agent interactions and tool results
 - **🧠 Structured IO Contracts** - Type-safe communication between agents via Pydantic models
 - **⚙️ Scalable Development** - Simplified maintenance and extension of multi-agent systems
+
+## Demo
+
+## News
+- **[2025-10]** AgentZ is released now! 
 
 ## Installation
 
@@ -37,7 +42,7 @@ See the [uv installation guide](https://docs.astral.sh/uv/getting-started/instal
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/agentz.git
+git clone https://github.com/context-machine-lab/agentz.git
 cd agentz
 
 # Sync dependencies
@@ -47,63 +52,22 @@ uv sync
 ## Quick Start
 
 ```python
-from pipelines.data_scientist import DataScientistPipeline
+from pipelines.data_scientist import DataScientistPipeline, DataScienceQuery
 
 pipe = DataScientistPipeline("pipelines/configs/data_science.yaml")
 
-pipe.run_sync()
+query = DataScienceQuery(
+    prompt="Analyze the dataset and build a predictive model",
+    data_path="data/banana_quality.csv"
+)
+
+pipe.run_sync(query)
 ```
 
 ## Building Your Own System
 
-### 1. Create a Custom Pipeline
-
-Inherit from `BasePipeline` to create your own agent workflow:
-
-```python
-from pipelines.base import BasePipeline
-
-
-class MyCustomPipeline(BasePipeline):
-    DEFAULT_CONFIG_PATH = "pipelines/configs/my_pipeline.yaml"
-
-    def __init__(self, config=None):
-        super().__init__(config)
-        # Add your custom initialization
-
-    async def run(self):
-        # Implement your workflow logic
-        pass
 ```
-
-### 2. Add Custom Agents
-
-Implement your agents following the standard interface:
-
-```python
-from agents import Agent
-
-def create_my_agent(config):
-    return Agent(
-        name="my_agent",
-        instructions="Your agent instructions here",
-        model=config.main_model
-    )
-```
-
-### 3. Configure & Run
-
-Create a config file and run your pipeline:
-
-```python
-pipe = MyCustomPipeline(
-    data_path="your_data.csv",
-    user_prompt="Your task description",
-    provider="gemini",
-    model="gemini-2.5-flash"
-)
-
-pipe.run_sync()
+TODO
 ```
 
 ## Architecture
@@ -138,31 +102,6 @@ agentz/
     └── data_science.py       # Example workflows
 ```
 
-### Declarative Pipeline Flow
-
-The reference `DataScientistPipeline` models an entire research workflow using
-three building blocks:
-
-1. **Central ConversationState** – A shared store that captures every field any
-   agent might read or write (iteration metadata, gaps, observations, tool
-   results, timing, final report, etc.). Each loop creates a new
-   `IterationRecord`, enabling partial updates and clean tracking of tool
-   outcomes.
-2. **Structured IO Contracts** – Each agent step declares the Pydantic model it
-   expects and produces (for example `KnowledgeGapOutput` or
-   `AgentSelectionPlan`). Input builders map slices of `ConversationState` into
-   those models and output handlers merge the validated results back into the
-   central state.
-3. **Declarative FlowRunner** – The pipeline defines an `IterationFlow` of
-   `FlowNode`s such as observe → evaluate → route → tools. Loop and termination
-   logic are expressed with predicates (`loop_condition`, `condition`), so the
-   executor can stop when evaluation marks `state.complete` or constraints are
-   reached. Finalisation steps (like the writer agent) run after the iteration
-   loop using the same structured IO.
-
-Because the flow is declarative and all state is centralised, extending the
-pipeline is as simple as adding a new node, output field, or tool capability—no
-custom `run()` logic is required beyond sequencing the flow runner.
 
 ## Benchmarks
 
@@ -170,33 +109,21 @@ AgentZ's context-central design has been validated on multiple research benchmar
 
 - **Data Science Tasks**: Efficient context sharing enables streamlined automated ML pipelines
 - **Complex Reasoning**: Centralized state tracking improves multi-step reasoning coordination
-- **Scalability**: Reduced overhead through component reuse in large-scale multi-agent systems
+- **Deep Research**: Search based complex reasoning and report generation
 
 *Detailed benchmark results and comparisons coming soon.*
 
-## Roadmap
+<!-- ## Roadmap
 
 - [x] Persistence Process - Stateful agent workflows
 - [x] Experience Learning - Memory-based reasoning
 - [x] Tool Design - Dynamic tool creation
 - [ ] Workflow RAG - Retrieval-augmented generation for complex workflows
-- [ ] MCPs - Model Context Protocol support for enhanced agent communication
+- [ ] MCPs - Model Context Protocol support for enhanced agent communication -->
 
-## Key Design Principles
+## Documentation
 
-1. **Context-Central** - All agents communicate through shared, centralized context state
-2. **Component Reusability** - Unified context engineering maximizes code reuse across agents
-3. **Declarative Over Imperative** - Define workflows through structured specifications, not manual orchestration
-4. **Structured State Management** - Type-safe IO contracts ensure reliable agent coordination
-5. **Scalable by Design** - Simplified development and maintenance of large multi-agent systems
-
-## Use Cases
-
-- **Multi-Agent Research** - Study context-sharing patterns and agent coordination strategies
-- **Automated Data Science** - Build reusable, stateful ML pipeline automation systems
-- **Complex Workflow Orchestration** - Design scalable multi-step agent collaborations
-- **Enterprise AI Systems** - Develop maintainable, large-scale agent deployments
-- **Agent Architecture Comparison** - Benchmark different approaches with consistent context management
+TODO
 
 ## Citation
 
@@ -219,6 +146,12 @@ We welcome contributions! AgentZ is designed to be a community resource for mult
 ## Acknowledgements
 
 AgentZ's context-central design is inspired by the multi-agent systems research community and best practices in distributed state management. We thank the developers of LLM frameworks and orchestration tools that informed this architecture.
+
+## Contributors
+
+<a href="https://github.com/context-machine-lab/agentz/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=context-machine-lab/agentz&max=999&columns=12&anon=1" />
+</a>
 
 ---
 
