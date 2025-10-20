@@ -20,7 +20,7 @@ You are a web craling agent that crawls the contents of a website answers a quer
 Only output JSON. Follow the JSON schema below. Do not output anything else. I will be parsing this with Pydantic so output valid JSON only:
 {ToolAgentOutput.model_json_schema()}
 """,
-    runtime_template="""{query}
+    runtime_template="""{runtime_input}
 
 CONTEXT FROM PREVIOUS STEPS:
 The query above may reference URLs found by previous search tasks. If specific URLs are not included in the query:

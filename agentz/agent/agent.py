@@ -281,6 +281,8 @@ class ContextAgent(Agent[TContext]):
                 printer_border_style=printer_border_style,
                 **span_kwargs,
             )
+            # if self.name == "web_searcher_agent":
+            #     import ipdb; ipdb.set_trace()
 
             if resolved_output_model and isinstance(result, resolved_output_model):
                 final_output = result

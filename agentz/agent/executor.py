@@ -65,6 +65,9 @@ async def agent_step(
                     result = Runner.run_sync(agent, instructions, context=tracker.data_store)
                 else:
                     result = await Runner.run(agent, instructions, context=tracker.data_store)
+                
+                # if agent.name == "web_searcher_agent":
+                #     import ipdb; ipdb.set_trace()
 
                 # Handle ContextAgent parse_output (for legacy string parsers)
                 from agentz.agent.agent import ContextAgent
