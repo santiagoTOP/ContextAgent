@@ -15,9 +15,39 @@ class Profile(BaseModel):
     model: Optional[str] = Field(default=None, description="Model override for this profile (e.g., 'gpt-4', 'claude-3-5-sonnet')")
     output_schema: Optional[Type[BaseModel]] = Field(default=None, description="Pydantic model class for structured output validation")
     tools: Optional[List[Any]] = Field(default=None, description="List of tool objects (e.g., FunctionTool instances) to use for this profile")
+    description: Optional[str] = Field(default=None, description="Optional one-sentence description for agent capabilities (auto-extracted from instructions if not provided)")
 
     class Config:
         arbitrary_types_allowed = True
+
+    def get_description(self) -> str:
+        """Get description for this profile.
+
+        Returns explicit description if set, otherwise auto-extracts from instructions.
+        Auto-extraction takes the first sentence and removes 'You are a/an ' prefix.
+
+        Returns:
+            Description string
+        """
+        if self.description:
+            return self.description
+
+        # Auto-extract from first sentence of instructions
+        first_line = self.instructions.split('\n')[0].strip()
+
+        # Remove "You are a " or "You are an " prefix
+        if first_line.startswith("You are a "):
+            desc = first_line[10:].strip()  # len("You are a ") = 10
+        elif first_line.startswith("You are an "):
+            desc = first_line[11:].strip()  # len("You are an ") = 11
+        else:
+            desc = first_line
+
+        # Remove trailing period
+        if desc.endswith('.'):
+            desc = desc[:-1]
+
+        return desc
 
     def render(self, **kwargs) -> str:
         """Render the runtime template with provided keyword arguments.

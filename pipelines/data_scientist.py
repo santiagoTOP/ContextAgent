@@ -59,15 +59,8 @@ class DataScientistPipeline(BasePipeline):
             for name in tool_agent_names
         }
 
-        # Set available agents with descriptions for routing
-        self.context.state.available_agents = {
-            "data_loader_agent": "Loads and inspects datasets from file paths",
-            "data_analysis_agent": "Performs exploratory data analysis to uncover patterns and relationships in datasets",
-            "preprocessing_agent": "Cleans and transforms datasets for analysis and modeling",
-            "model_training_agent": "Trains and evaluates machine learning models on prepared datasets",
-            "evaluation_agent": "Provides comprehensive performance assessments of machine learning models",
-            "visualization_agent": "Creates visual representations of data patterns and insights",
-        }
+        # Register tool agents - automatically populates available_agents with descriptions from profiles
+        self.context.state.register_tool_agents(self.tool_agents)
 
 
     @autotracing()
@@ -95,7 +88,7 @@ class DataScientistPipeline(BasePipeline):
 
                 if plan_tasks:
                     self.context.state.current_iteration.tools.clear()
-                    coroutines = [self.tool_agents[task.agent](task) for task in plan_tasks]
+                    coroutines = [self.tool_agents[task.agent](task.query) for task in plan_tasks]
                     for coroutine in asyncio.as_completed(coroutines):
                         await coroutine
 

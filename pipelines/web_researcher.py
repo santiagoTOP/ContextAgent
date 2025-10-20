@@ -60,6 +60,9 @@ class WebSearcherPipeline(BasePipeline):
             for name in tool_agent_names
         }
 
+        # Register tool agents - automatically populates available_agents with descriptions from profiles
+        self.context.state.register_tool_agents(self.tool_agents)
+
     async def run(self, query: Any = None) -> Any:
         """Execute web search workflow - full implementation in one function.
 

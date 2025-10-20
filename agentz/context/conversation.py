@@ -201,6 +201,20 @@ class ConversationState(BaseModel):
         """Set the query - stores the original query object."""
         self.query = query
 
+    def register_tool_agents(self, tool_agents: Dict[str, Any]) -> None:
+        """Register tool agents and auto-populate available_agents with descriptions.
+
+        Automatically extracts descriptions from agent profiles.
+
+        Args:
+            tool_agents: Dictionary of {agent_name: ContextAgent}
+        """
+        for agent_name, agent in tool_agents.items():
+            # Get description from agent's profile
+            if hasattr(agent, '_profile') and agent._profile:
+                description = agent._profile.get_description()
+                self.available_agents[agent_name] = description
+
     def record_payload(self, payload: Any) -> BaseModel:
         """Attach a structured payload to the current iteration."""
         iteration = self.current_iteration if self.iterations else self.begin_iteration()

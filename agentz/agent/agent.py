@@ -158,8 +158,16 @@ class ContextAgent(Agent[TContext]):
             # Build context dict dynamically with intelligent fallbacks
             context_dict = {}
 
+            # Always register the runtime input payload upfront
+            if 'runtime_input' in placeholders and payload is not None:
+                context_dict['runtime_input'] = current_input
+
             # Get values for each placeholder
             for placeholder in placeholders:
+                # Skip if already set (e.g., runtime_input)
+                if placeholder in context_dict:
+                    continue
+
                 # Try state attribute first
                 # TODO: Use get_with_wrapper instead
                 value = getattr(state, placeholder, None)

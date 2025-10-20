@@ -28,7 +28,7 @@ GUIDELINES:
 
 Only output JSON. Follow the JSON schema below. Do not output anything else. I will be parsing this with Pydantic so output valid JSON only:
 {ToolAgentOutput.model_json_schema()}""",
-    runtime_template="{task}",
+    runtime_template="{runtime_input}",
     output_schema=ToolAgentOutput,
     tools=[analyze_data],
     model=None
