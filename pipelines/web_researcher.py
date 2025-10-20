@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+
 from typing import Any
 
 from pydantic import BaseModel
 
-from agentz.agent import ContextAgent, execute_tools
+from agentz.agent import ContextAgent
 from agentz.context.context import Context
+from agentz.profiles.base import ToolAgentOutput
 from pipelines.base import BasePipeline
 
 
@@ -39,9 +42,6 @@ class WebSearcherPipeline(BasePipeline):
 
         # Initialize context and profiles
         self.context = Context(["profiles", "states"])
-        self.context.state.max_time_minutes = self.max_time_minutes
-        # Set context reference on tracker for fresh iteration access
-        self._set_tracker_context(self.context)
         llm = self.config.llm.main_model
 
         # Create manager agents with explicit dependencies
@@ -86,13 +86,69 @@ class WebSearcherPipeline(BasePipeline):
 
             if not self.context.state.complete:
                 planning_output = await self.planning_agent(evaluate_output)
-                await execute_tools(
-                    route_plan=planning_output,
-                    tool_agents=self.tool_agents,
-                    context=self.context,
-                    tracker=self.runtime_tracker,
-                    update_printer_fn=self.update_printer,
-                )
+
+                plan_tasks = getattr(planning_output, "tasks", []) if planning_output else []
+
+                if plan_tasks:
+                    try:
+                        self.context.state.current_iteration.tools.clear()
+                    except Exception:
+                        pass
+
+                    async def run_tool(task):
+                        agent_name = getattr(task, "agent", "")
+                        printer_key = f"tool:{agent_name}" if agent_name else None
+
+                        agent_key = agent_name if agent_name in self.tool_agents else f"{agent_name}_agent"
+                        tool_agent = self.tool_agents.get(agent_key)
+                        if tool_agent is None:
+                            missing_output = ToolAgentOutput(
+                                output=f"No implementation found for agent {agent_name}",
+                                sources=[],
+                            )
+                            try:
+                                self.context.state.record_payload(missing_output)
+                            except Exception:
+                                pass
+                            try:
+                                iteration = self.context.state.current_iteration
+                            except Exception:
+                                iteration = None
+                            if iteration is not None:
+                                try:
+                                    iteration.tools.append(missing_output)
+                                except Exception:
+                                    pass
+                            if printer_key:
+                                self.update_printer(
+                                    printer_key,
+                                    f"Completed {agent_name}",
+                                    is_done=True,
+                                )
+                            return missing_output
+
+                        try:
+                            return await tool_agent(
+                                task,
+                                tracker=self.runtime_tracker,
+                                span_name=agent_key,
+                                span_type="tool",
+                                output_model=ToolAgentOutput,
+                                printer_key=printer_key,
+                                printer_title=f"Tool: {agent_name}" if agent_name else None,
+                                record_payload=True,
+                            )
+                        finally:
+                            if printer_key:
+                                self.update_printer(
+                                    printer_key,
+                                    f"Completed {agent_name}",
+                                    is_done=True,
+                                )
+
+                    coroutines = [run_tool(task) for task in plan_tasks]
+                    for coroutine in asyncio.as_completed(coroutines):
+                        await coroutine
 
             # End iteration - group_id managed automatically
             self.end_iteration()

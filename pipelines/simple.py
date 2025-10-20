@@ -35,9 +35,6 @@ class SimplePipeline(BasePipeline):
 
         # Initialize shared context (profiles + conversation state)
         self.context = Context(["profiles", "states"])
-        self.context.state.max_time_minutes = self.max_time_minutes
-        # Set context reference on tracker for fresh iteration access
-        self._set_tracker_context(self.context)
         llm = self.config.llm.main_model
 
         # Bind agents from registered profiles with explicit dependencies

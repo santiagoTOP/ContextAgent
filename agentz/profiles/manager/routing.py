@@ -61,6 +61,9 @@ IMPORTANT: Actively search the ORIGINAL QUERY section below for file paths, URLs
 
 Create a routing plan with EXACTLY ONE agent and ONE task to address the most immediate knowledge gap.""",
     runtime_template="""
+AVAILABLE AGENTS:
+{available_agents_text}
+
 ORIGINAL QUERY:
 {query}
 

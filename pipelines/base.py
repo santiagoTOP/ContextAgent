@@ -100,6 +100,14 @@ class BasePipeline:
             experiment_id=self.experiment_id,
         )
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Auto-setup context when assigned to enable transparent integration."""
+        super().__setattr__(name, value)
+        # Auto-setup context when it's assigned (if tracker is ready)
+        if name == "context" and hasattr(self, "_runtime_tracker"):
+            value.state.max_time_minutes = self.max_time_minutes
+            self._set_tracker_context(value)
+
     # ============================================
     # Core Properties
     # ============================================
@@ -145,6 +153,18 @@ class BasePipeline:
             context: The context object to set
         """
         self._runtime_tracker.context = context
+
+    def _setup_context(self, context: Any) -> None:
+        """Setup context with state and tracker integration.
+
+        Call this after creating context in subclass __init__.
+        Initializes max_time_minutes and connects tracker to context.
+
+        Args:
+            context: The context object to setup
+        """
+        context.state.max_time_minutes = self.max_time_minutes
+        self._set_tracker_context(context)
 
     # ============================================
     # Printer & Reporter Management

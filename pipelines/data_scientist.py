@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
+
 from typing import Any
 from pydantic import BaseModel
 
-from agentz.agent import ContextAgent, execute_tools
+from agentz.agent import ContextAgent
 from agentz.context import Context
 from pipelines.base import BasePipeline, autotracing
 
@@ -35,9 +37,6 @@ class DataScientistPipeline(BasePipeline):
 
         # Initialize context and profiles
         self.context = Context(["profiles", "states"])
-        self.context.state.max_time_minutes = self.max_time_minutes
-        # Set context reference on tracker for fresh iteration access
-        self._set_tracker_context(self.context)
         llm = self.config.llm.main_model
 
         # Create manager agents with explicit dependencies
@@ -58,6 +57,16 @@ class DataScientistPipeline(BasePipeline):
         self.tool_agents = {
             name: ContextAgent(self.context, profile=name.removesuffix("_agent"), llm=llm, name=name)
             for name in tool_agent_names
+        }
+
+        # Set available agents with descriptions for routing
+        self.context.state.available_agents = {
+            "data_loader_agent": "Loads and inspects datasets from file paths",
+            "data_analysis_agent": "Performs exploratory data analysis to uncover patterns and relationships in datasets",
+            "preprocessing_agent": "Cleans and transforms datasets for analysis and modeling",
+            "model_training_agent": "Trains and evaluates machine learning models on prepared datasets",
+            "evaluation_agent": "Provides comprehensive performance assessments of machine learning models",
+            "visualization_agent": "Creates visual representations of data patterns and insights",
         }
 
 
@@ -81,13 +90,14 @@ class DataScientistPipeline(BasePipeline):
 
             if not self.context.state.complete:
                 routing_output = await self.routing_agent(evaluate_output)
-                await execute_tools(
-                    route_plan=routing_output,
-                    tool_agents=self.tool_agents,
-                    context=self.context,
-                    tracker=self.runtime_tracker,
-                    update_printer_fn=self.update_printer,
-                )
+                import ipdb; ipdb.set_trace()
+                plan_tasks = routing_output.tasks
+
+                if plan_tasks:
+                    self.context.state.current_iteration.tools.clear()
+                    coroutines = [self.tool_agents[task.agent](task) for task in plan_tasks]
+                    for coroutine in asyncio.as_completed(coroutines):
+                        await coroutine
 
         # Phase 3: Final report generation
         self.update_printer("research", "Research workflow complete", is_done=True)

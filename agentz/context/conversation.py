@@ -106,6 +106,7 @@ class ConversationState(BaseModel):
     query: Optional[Any] = None  # Store original query object
     formatted_query: Optional[str] = None  # Store pre-formatted query string
     max_time_minutes: Optional[float] = None  # Maximum allowed runtime in minutes
+    available_agents: Dict[str, str] = Field(default_factory=dict)  # Agent names to descriptions mapping
 
     _iteration_model: Type[BaseIterationRecord] = PrivateAttr()
 
@@ -153,6 +154,14 @@ class ConversationState(BaseModel):
         if self.started_at is None:
             return '0'
         return str((time.time() - self.started_at) / 60)
+
+    @property
+    def available_agents_text(self) -> str:
+        """Format available agents as a bulleted list for prompts."""
+        if not self.available_agents:
+            return ''
+        lines = [f"- {agent_name}: {description}" for agent_name, description in self.available_agents.items()]
+        return '\n'.join(lines)
 
     def begin_iteration(self) -> BaseIterationRecord:
         iteration = self._iteration_model(index=len(self.iterations) + 1)

@@ -11,7 +11,7 @@ from agents.run_context import TContext
 from agentz.llm.llm_setup import model_supports_json_and_tool_calls
 from agentz.utils.parsers import create_type_parser
 from agentz.context.conversation import identity_wrapper
-from agentz.utils.helpers import extract_final_output
+from agentz.utils.helpers import extract_final_output, parse_to_model
 
 
 class ContextAgent(Agent[TContext]):
@@ -172,6 +172,8 @@ class ContextAgent(Agent[TContext]):
                 context_dict[placeholder] = ''
 
             # Extract BaseModel fields (only if template needs them)
+            serialized_payload: str | None = None
+
             if payload is not None and isinstance(payload, BaseModel):
                 try:
                     payload_dict = payload.model_dump()
@@ -182,6 +184,14 @@ class ContextAgent(Agent[TContext]):
                             context_dict[lowercased_key] = str(field_value) if field_value is not None else ''
                 except Exception:
                     pass
+
+            if serialized_payload is None and payload is not None:
+                serialized_payload = self._serialize_payload(payload)
+
+            if serialized_payload is not None:
+                for key in ("task", "payload", "input"):
+                    if key in placeholders and key not in context_dict:
+                        context_dict[key] = serialized_payload
 
             # Render the runtime_template with context values
             return profile.render(**context_dict)
@@ -195,6 +205,15 @@ class ContextAgent(Agent[TContext]):
         payload: Any = None,
         *,
         tracker: Optional[Any] = None,
+        span_name: Optional[str] = None,
+        span_type: Optional[str] = None,
+        output_model: Optional[type[BaseModel]] = None,
+        printer_key: Optional[str] = None,
+        printer_title: Optional[str] = None,
+        printer_border_style: Optional[str] = None,
+        record_payload: Optional[bool] = None,
+        sync: bool = False,
+        **span_kwargs: Any,
     ) -> Any:
         """Make ContextAgent callable directly.
 
@@ -226,16 +245,67 @@ class ContextAgent(Agent[TContext]):
         if tracker:
             from agentz.agent.executor import agent_step
 
+            is_tool_agent = bool(self.tools)
+            resolved_span_name = span_name or self.name
+            resolved_span_type = span_type or ("tool" if is_tool_agent else "agent")
+
+            resolved_printer_key = printer_key or (f"tool:{resolved_span_name}" if is_tool_agent else None)
+            resolved_printer_title = printer_title or (f"Tool: {resolved_span_name}" if is_tool_agent else None)
+
+            resolved_output_model = output_model
+            if resolved_output_model is None and is_tool_agent:
+                from agentz.profiles.base import ToolAgentOutput
+
+                resolved_output_model = ToolAgentOutput
+
+            resolved_record_payload = record_payload if record_payload is not None else is_tool_agent
+
             result = await agent_step(
                 tracker=tracker,
                 agent=self,
                 instructions=instructions,
-                # No group_id - tracker auto-derives from context!
+                span_name=resolved_span_name,
+                span_type=resolved_span_type,
+                output_model=resolved_output_model,
+                sync=sync,
+                printer_key=resolved_printer_key,
+                printer_title=resolved_printer_title,
+                printer_border_style=printer_border_style,
+                **span_kwargs,
             )
-            # Extract final output for cleaner API
-            output = extract_final_output(result)
 
-            return output
+            if resolved_output_model and isinstance(result, resolved_output_model):
+                final_output = result
+            else:
+                final_output = extract_final_output(result)
+                if (
+                    resolved_output_model
+                    and not isinstance(final_output, resolved_output_model)
+                ):
+                    try:
+                        final_output = parse_to_model(final_output, resolved_output_model)
+                    except Exception:
+                        # Preserve original output if parsing fails
+                        pass
+
+            if resolved_record_payload and hasattr(self, "_context"):
+                state = getattr(self._context, "state", None)
+                if state is not None:
+                    try:
+                        state.record_payload(final_output)
+                    except Exception:
+                        pass
+                    try:
+                        iteration = state.current_iteration
+                    except Exception:
+                        iteration = None
+                    if iteration is not None:
+                        try:
+                            iteration.tools.append(final_output)
+                        except Exception:
+                            pass
+
+            return final_output
 
 
     async def parse_output(self, run_result: RunResult) -> RunResult:
