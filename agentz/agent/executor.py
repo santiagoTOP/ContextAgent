@@ -122,6 +122,9 @@ async def agent_step(
     # Support both group_id and printer_group_id (group_id takes precedence)
     if group_id is not None:
         printer_group_id = group_id
+    elif printer_group_id is None:
+        # Auto-derive group_id from iteration if not explicitly provided
+        printer_group_id = f"iter-{tracker.iteration}" if tracker.iteration > 0 else None
 
     span_factory = agent_span if span_type == "agent" else function_span
 

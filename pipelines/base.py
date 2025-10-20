@@ -86,7 +86,6 @@ class BasePipeline:
         self.start_time: Optional[float] = None
         self.should_continue = True
         self.constraint_reason = ""
-        self._current_group_id: Optional[str] = None
 
         # Setup tracing configuration and logging
         self._setup_tracing()
@@ -381,7 +380,6 @@ class BasePipeline:
         """
         iteration, group_id = self.context.begin_iteration()
         self.iteration = iteration.index
-        self._current_group_id = group_id
 
         display_title = title or f"Iteration {iteration.index}"
         self.start_group(
@@ -397,14 +395,14 @@ class BasePipeline:
         """End the current iteration and its associated group.
 
         Combines context.mark_iteration_complete() + end_group() into a single call.
-        Automatically uses the internally managed group_id.
+        Automatically derives group_id from current iteration.
 
         Args:
             is_done: Whether the iteration completed successfully (default: True)
         """
         self.context.mark_iteration_complete()
-        self.end_group(self._current_group_id, is_done=is_done)
-        self._current_group_id = None
+        group_id = f"iter-{self.iteration}"
+        self.end_group(group_id, is_done=is_done)
 
     def iterate(
         self,

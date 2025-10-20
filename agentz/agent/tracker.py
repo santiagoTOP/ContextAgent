@@ -196,6 +196,10 @@ class RuntimeTracker:
             border_style: Optional border color
             group_id: Optional group to nest this item in
         """
+        # Auto-derive group_id from iteration if not explicitly provided
+        if group_id is None and self.iteration > 0:
+            group_id = f"iter-{self.iteration}"
+
         if self.reporter:
             self.reporter.record_status_update(
                 item_id=key,

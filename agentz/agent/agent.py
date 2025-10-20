@@ -10,7 +10,7 @@ from agents import Agent, RunResult
 from agents.run_context import TContext
 from agentz.llm.llm_setup import model_supports_json_and_tool_calls
 from agentz.utils.parsers import create_type_parser
-from agentz.context.utils import identity_wrapper
+from agentz.context.conversation import identity_wrapper
 
 
 class ContextAgent(Agent[TContext]):
@@ -160,7 +160,9 @@ class ContextAgent(Agent[TContext]):
             # Get values for each placeholder
             for placeholder in placeholders:
                 # Try state attribute first
-                value = state.get_with_wrapper(placeholder, self._context_wrappers.get(placeholder, identity_wrapper))
+                # TODO: Use get_with_wrapper instead
+                value = getattr(state, placeholder, None)
+                # value = state.get_with_wrapper(placeholder, self._context_wrappers.get(placeholder, identity_wrapper))
                 if value is not None:
                     context_dict[placeholder] = str(value)
                     continue

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import time
-from typing import Any, ClassVar, Dict, Iterable, List, Optional, Set, Tuple, Type, Callable
+from typing import Any, Callable, ClassVar, Dict, List, Optional, Set, Tuple, Type
+
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError, create_model
+
 from agentz.profiles.base import Profile, ToolAgentOutput
 
-from agentz.context.utils import identity_wrapper
+
+def identity_wrapper(value: Any) -> Any:
+    return value
 
 class BaseIterationRecord(BaseModel):
     """State captured for a single iteration of the research loop."""
@@ -101,6 +105,7 @@ class ConversationState(BaseModel):
     summary: Optional[str] = None
     query: Optional[Any] = None  # Store original query object
     formatted_query: Optional[str] = None  # Store pre-formatted query string
+    max_time_minutes: Optional[float] = None  # Maximum allowed runtime in minutes
 
     _iteration_model: Type[BaseIterationRecord] = PrivateAttr()
 

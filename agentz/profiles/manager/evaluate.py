@@ -28,7 +28,7 @@ Evaluate the research state and provide structured output with:
 - outstanding_gaps: list of specific gaps that still need addressing
 - reasoning: clear explanation of your evaluation""",
     runtime_template="""Current Iteration Number: {iteration}
-Time Elapsed: {elapsed_minutes} minutes of maximum {max_minutes} minutes
+Time Elapsed: {elapsed_minutes} minutes of maximum {max_time_minutes} minutes
 
 ORIGINAL QUERY:
 {query}

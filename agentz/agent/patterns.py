@@ -11,7 +11,6 @@ from agentz.agent.executor import agent_step
 async def execute_tool_plan(
     plan: Any,
     tool_agents: Dict[str, Any],
-    group_id: str,
     context: Any,
     tracker: Any,
     update_printer_fn: Optional[Any] = None,
@@ -21,7 +20,6 @@ async def execute_tool_plan(
     Args:
         plan: AgentSelectionPlan with tasks to execute
         tool_agents: Dict mapping agent names to agent instances
-        group_id: Group ID for printer updates
         context: Pipeline context with state
         tracker: RuntimeTracker for agent execution
         update_printer_fn: Optional function for printer updates
@@ -42,10 +40,9 @@ async def execute_tool_plan(
             )
             if update_printer_fn:
                 update_printer_fn(
-                    key=f"{group_id}:tool:{task.agent}",
+                    key=f"tool:{task.agent}",
                     message=f"Completed {task.agent}",
                     is_done=True,
-                    group_id=group_id,
                 )
             return output
 
@@ -58,7 +55,6 @@ async def execute_tool_plan(
             output_model=ToolAgentOutput,
             printer_key=f"tool:{task.agent}",
             printer_title=f"Tool: {task.agent}",
-            printer_group_id=group_id,
         )
         # import ipdb
         # ipdb.set_trace()
@@ -79,10 +75,9 @@ async def execute_tool_plan(
 
         if update_printer_fn:
             update_printer_fn(
-                key=f"{group_id}:tool:{task.agent}",
+                key=f"tool:{task.agent}",
                 message=f"Completed {task.agent}",
                 is_done=True,
-                group_id=group_id,
             )
         return output
 
@@ -95,7 +90,6 @@ async def execute_tool_plan(
 async def execute_tools(
     route_plan: Any,
     tool_agents: Dict[str, Any],
-    group_id: str,
     context: Any,
     tracker: Any,
     update_printer_fn: Optional[Any] = None,
@@ -105,7 +99,6 @@ async def execute_tools(
     Args:
         route_plan: The routing plan (can be AgentSelectionPlan or other)
         tool_agents: Dict mapping agent names to agent instances
-        group_id: Group ID for printer updates
         context: Pipeline context with state
         tracker: RuntimeTracker for agent execution
         update_printer_fn: Optional function for printer updates
@@ -114,7 +107,7 @@ async def execute_tools(
 
     if plan and plan.tasks:
         await execute_tool_plan(
-            plan, tool_agents, group_id, context, tracker, update_printer_fn
+            plan, tool_agents, context, tracker, update_printer_fn
         )
 
 

@@ -60,14 +60,12 @@ Example:
 IMPORTANT: Actively search the ORIGINAL QUERY section below for file paths, URLs, and identifiers, and include them explicitly in your task queries.
 
 Create a routing plan with EXACTLY ONE agent and ONE task to address the most immediate knowledge gap.""",
-    runtime_template="""AVAILABLE AGENTS:
-{available_agents}
-
+    runtime_template="""
 ORIGINAL QUERY:
 {query}
 
 KNOWLEDGE GAP TO ADDRESS:
-{gap}
+{outstanding_gaps}
 
 HISTORY OF ACTIONS, FINDINGS AND THOUGHTS:
 {conversation_history}""",

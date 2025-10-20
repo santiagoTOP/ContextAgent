@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple, Union
 
+from pydantic import BaseModel
+
 from agentz.context.conversation import BaseIterationRecord, ConversationState, create_conversation_state
 from agentz.profiles.base import Profile, load_all_profiles
-from agentz.context.base_context_module import BaseContextModule
 
 class Context:
     """Central coordinator for conversation state and iteration management."""
@@ -57,7 +58,7 @@ class Context:
     def state(self) -> ConversationState:
         return self._state
 
-    def register_context_module(self, name: str, module: BaseContextModule) -> None:
+    def register_context_module(self, name: str, module: BaseModel) -> None:
         self.context_modules[name] = module
 
     def get_context_module(self, name: str) -> BaseModel:

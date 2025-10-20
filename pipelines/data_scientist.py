@@ -35,6 +35,7 @@ class DataScientistPipeline(BasePipeline):
 
         # Initialize context and profiles
         self.context = Context(["profiles", "states"])
+        self.context.state.max_time_minutes = self.max_time_minutes
         llm = self.config.llm.main_model
 
         # Create manager agents with explicit dependencies
@@ -72,15 +73,15 @@ class DataScientistPipeline(BasePipeline):
             self.iterate()
 
             # Observe → Evaluate → Route → Tools
-            observe_output = await self.observe_agent(query, group_id=self._current_group_id)
-            evaluate_output = await self.evaluate_agent(observe_output, group_id=self._current_group_id)
+            group_id = f"iter-{self.iteration}"
+            observe_output = await self.observe_agent(query, group_id=group_id)
+            evaluate_output = await self.evaluate_agent(observe_output, group_id=group_id)
 
             if not self.context.state.complete:
-                routing_output = await self.routing_agent(evaluate_output, group_id=self._current_group_id)
+                routing_output = await self.routing_agent(evaluate_output, group_id=group_id)
                 await execute_tools(
                     route_plan=routing_output,
                     tool_agents=self.tool_agents,
-                    group_id=self._current_group_id,
                     context=self.context,
                     tracker=self.runtime_tracker,
                     update_printer_fn=self.update_printer,
@@ -88,7 +89,7 @@ class DataScientistPipeline(BasePipeline):
 
         # Phase 3: Final report generation
         self.update_printer("research", "Research workflow complete", is_done=True)
-        await self.writer_agent(self.context.state.findings_text(), group_id=self._current_group_id)
+        await self.writer_agent(self.context.state.findings_text())
 
         # Phase 4: Finalization
         final_result = self.context.state.final_report

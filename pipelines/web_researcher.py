@@ -39,6 +39,7 @@ class WebSearcherPipeline(BasePipeline):
 
         # Initialize context and profiles
         self.context = Context(["profiles", "states"])
+        self.context.state.max_time_minutes = self.max_time_minutes
         llm = self.config.llm.main_model
 
         # Create manager agents with explicit dependencies
@@ -77,15 +78,15 @@ class WebSearcherPipeline(BasePipeline):
             query = self.context.state.formatted_query or ""
 
             # Observe → Evaluate → Plan → Execute Multiple Tools
-            observe_output = await self.observe_agent(query, group_id=self._current_group_id)
-            evaluate_output = await self.evaluate_agent(observe_output, group_id=self._current_group_id)
+            group_id = f"iter-{self.iteration}"
+            observe_output = await self.observe_agent(query, group_id=group_id)
+            evaluate_output = await self.evaluate_agent(observe_output, group_id=group_id)
 
             if not self.context.state.complete:
-                planning_output = await self.planning_agent(evaluate_output, group_id=self._current_group_id)
+                planning_output = await self.planning_agent(evaluate_output, group_id=group_id)
                 await execute_tools(
                     route_plan=planning_output,
                     tool_agents=self.tool_agents,
-                    group_id=self._current_group_id,
                     context=self.context,
                     tracker=self.runtime_tracker,
                     update_printer_fn=self.update_printer,
@@ -96,7 +97,7 @@ class WebSearcherPipeline(BasePipeline):
 
         # Final report
         self.update_printer("research", "Web search workflow complete", is_done=True)
-        await self.writer_agent(self.context.state.findings_text(), group_id=self._current_group_id)
+        await self.writer_agent(self.context.state.findings_text())
 
         # Return final result
         final_result = self.context.state.final_report
