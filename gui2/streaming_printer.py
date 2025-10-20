@@ -99,12 +99,14 @@ class StreamingPrinter(Printer):
         *,
         border_style: Optional[str] = None,
         iteration: Optional[int] = None,
+        group_id: Optional[str] = None,
     ) -> None:
         super().log_panel(
             title,
             content,
             border_style=border_style,
             iteration=iteration,
+            group_id=group_id,
         )
         self._emit_update(
             "log_panel",
@@ -113,6 +115,7 @@ class StreamingPrinter(Printer):
                 "content": content,
                 "border_style": border_style,
                 "iteration": iteration,
+                "group_id": group_id,
             },
         )
 

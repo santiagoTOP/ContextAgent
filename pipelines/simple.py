@@ -5,7 +5,7 @@ from typing import Any
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from agentz.agent.base import ContextAgent
+from agentz.agent import ContextAgent
 from agentz.context.context import Context
 from agentz.profiles.manager.routing import AgentSelectionPlan, AgentTask
 from pipelines.base import BasePipeline
@@ -38,18 +38,8 @@ class SimplePipeline(BasePipeline):
         llm = self.config.llm.main_model
 
         # Bind agents from registered profiles with explicit dependencies
-        self.routing_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="routing",
-            llm=llm,
-        )
-        self.tool_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="web_searcher",
-            llm=llm,
-        )
+        self.routing_agent = ContextAgent(context=self.context, profile="routing", llm=llm)
+        self.tool_agent = ContextAgent(context=self.context, profile="web_searcher", llm=llm)
 
     async def run(self, query: Any = None) -> Any:
         """Route the query once and execute the web searcher agent.
@@ -87,13 +77,13 @@ class SimplePipeline(BasePipeline):
             history=self.context.state.iteration_history(include_current=False) or "",
         )
 
-        routing_plan = await self.routing_agent(routing_input, group_id=self._current_group_id, tracker=self.runtime_tracker)
+        routing_plan = await self.routing_agent(routing_input, group_id=self._current_group_id)
         task = self._select_task(routing_plan)
 
         # Just pass the task query string directly - agent will handle it
         tool_payload = task.query
 
-        result = await self.tool_agent(tool_payload, group_id=self._current_group_id, tracker=self.runtime_tracker)
+        result = await self.tool_agent(tool_payload, group_id=self._current_group_id)
 
         if self.state:
             self.state.final_report = result.output

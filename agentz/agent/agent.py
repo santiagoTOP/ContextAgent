@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import json
 import re
-from typing import Any, Callable, Optional
+from typing import Any, Optional, Callable
 
 from pydantic import BaseModel
 
@@ -11,41 +12,91 @@ from agentz.llm.llm_setup import model_supports_json_and_tool_calls
 from agentz.utils.parsers import create_type_parser
 from agentz.context.utils import identity_wrapper
 
-PromptBuilder = Callable[[Any, Any, "ContextAgent"], str]
-
 
 class ContextAgent(Agent[TContext]):
-    """Capability-centric wrapper that binds LLM + tools + typed IO contract."""
+    """Augmented Agent class with context-aware capabilities.
+
+    ContextAgent extends the base Agent class with:
+    - Automatic context injection into instructions
+    - Profile-based configuration (tools, instructions, output schema)
+    - Automatic iteration tracking and state management
+    - Runtime template rendering with state placeholders
+
+    Usage:
+        agent = ContextAgent(
+            context=context,
+            profile="observe",
+            llm="gpt-4"
+        )
+
+    All Agent parameters can be passed via **agent_kwargs to override profile defaults:
+        agent = ContextAgent(
+            context=context,
+            profile="observe",
+            llm="gpt-4",
+            tools=[custom_tool],  # Overrides profile tools
+            model="gpt-4-turbo"   # Overrides llm parameter
+        )
+    """
 
     def __init__(
         self,
-        *args: Any,
-        output_model: type[BaseModel] | None = None,
-        prompt_builder: PromptBuilder | None = None,
-        default_span_type: str = "agent",
-        output_parser: Optional[Callable[[str], Any]] = None,
-        auto_inject_context: bool = True,
-        context: Optional[Any] = None,
-        config: Optional[Any] = None,
-        tool_agents: Optional[dict[str, Any]] = None,
-        **kwargs: Any,
+        context: Any,
+        *,
+        profile: str,
+        llm: str,
+        **agent_kwargs: Any,
     ) -> None:
-        if output_model and kwargs.get("output_type"):
-            raise ValueError("Use either output_model or output_type, not both.")
-        if output_model is not None:
-            kwargs["output_type"] = output_model
+        """Initialize ContextAgent with context and profile identifier.
 
-        super().__init__(*args, **kwargs)
+        Args:
+            context: Context object containing profiles and state
+            profile: Profile identifier for lookup in context.profiles
+            llm: LLM model name (e.g., "gpt-4", "claude-3-5-sonnet")
+            **agent_kwargs: Additional Agent parameters that override profile defaults
+                          (name, tools, instructions, output_type, model, etc.)
+        """
+        # Lookup profile from context
+        resolved_profile = context.profiles[profile]
+        resolved_identifier = profile
 
-        self.output_model = self._coerce_output_model(output_model or getattr(self, "output_type", None))
-        self.prompt_builder = prompt_builder
-        self.default_span_type = default_span_type
+        # Build base agent configuration directly from profile
+        tools = resolved_profile.tools or []
+        base_agent_kwargs = {
+            "instructions": resolved_profile.instructions,
+            "tools": tools,
+            "model": llm,
+        }
+
+        # Handle output schema and parser
+        output_parser = None
+        output_schema = getattr(resolved_profile, "output_schema", None)
+
+        if output_schema:
+            if tools and not model_supports_json_and_tool_calls(llm):
+                output_parser = create_type_parser(output_schema)
+            else:
+                base_agent_kwargs["output_type"] = output_schema
+
+        # Determine final agent name
+        agent_name = resolved_identifier if resolved_identifier.endswith("_agent") else f"{resolved_identifier}_agent"
+
+        # Extract name override if provided, otherwise use derived name
+        agent_kwargs_copy = dict(agent_kwargs)
+        final_name = agent_kwargs_copy.pop("name", agent_name)
+
+        # Merge agent_kwargs on top of profile config (agent_kwargs wins)
+        base_agent_kwargs.update(agent_kwargs_copy)
+
+        # Initialize parent Agent class
+        super().__init__(name=final_name, **base_agent_kwargs)
+
+        # Store ContextAgent-specific attributes
         self.output_parser = output_parser
-        self.auto_inject_context = auto_inject_context  # Whether to automatically inject context in __call__
         self._context = context  # Context reference for state access
-        self._config = config  # Config reference for settings access
-        self._tool_agents = tool_agents  # Available tool agents
-        self._role = None  # Optional role identifier for automatic iteration tracking
+        self._identifier = resolved_identifier  # Identifier used for profile lookup/iteration tracking
+        self._profile = resolved_profile  # Profile metadata for runtime templates
+        
         self._context_wrappers = {}
     
     def register_context_wrapper(self, field_name: str, wrapper: Callable[[Any], Any] = identity_wrapper) -> None:
@@ -56,96 +107,22 @@ class ContextAgent(Agent[TContext]):
         """Get a context wrapper for a field name."""
         return self._context.get_with_wrapper(field_name, self._context_wrappers.get(field_name, identity_wrapper))
 
-
-    @classmethod
-    def from_profile(
-        cls,
-        context: Any,
-        config: Any,
-        role: str,
-        llm: str,
-        tool_agents: Optional[dict[str, Any]] = None,
-    ) -> "ContextAgent":
-        """Create a ContextAgent from context and role.
-
-        Automatically looks up the profile from context.profiles[role],
-        derives agent name, and configures the agent with explicit dependencies.
-
-        Args:
-            context: Context instance (must have profiles attribute)
-            config: Config instance for settings access
-            role: Role name that maps to a profile key (e.g., "observe", "evaluate")
-            llm: LLM model name (e.g., "gpt-4", "claude-3-5-sonnet")
-            tool_agents: Optional dictionary of available tool agents
-
-        Returns:
-            ContextAgent instance configured from the profile
-
-        Example:
-            agent = ContextAgent.from_profile(
-                context=self.context,
-                config=self.config,
-                role="observe",
-                llm="gpt-4",
-            )
-        """
-        # Look up profile from context
-        profile = context.profiles[role]
-
-        # Auto-derive name from role
-        agent_name = role + "_agent" if role != "agent" else "agent"
-
-        # Get tools and output schema from profile
-        tools = profile.tools or []
-        output_schema = getattr(profile, "output_schema", None)
-
-        # Check if model supports both structured output and tools
-        # If not, use output_parser instead of output_model
-        output_model = None
-        output_parser = None
-        instructions = profile.instructions
-
-        if output_schema and tools and not model_supports_json_and_tool_calls(llm):
-            # Model doesn't support both - use parser instead
-            output_parser = create_type_parser(output_schema)
-        elif output_schema:
-            # Model supports both or no tools present - use structured output
-            output_model = output_schema
-
-        agent = cls(
-            name=agent_name,
-            instructions=instructions,
-            output_model=output_model,
-            tools=tools,
-            model=llm,
-            output_parser=output_parser,
-            context=context,
-            config=config,
-            tool_agents=tool_agents,
-        )
-
-        # Set role and profile for runtime_template access
-        agent._role = role
-        agent._profile = profile  # Store profile for runtime_template access
-
-        return agent
+    @property
+    def role(self) -> str:
+        return self._identifier.removesuffix("_agent")
 
     @staticmethod
-    def _coerce_output_model(candidate: Any) -> type[BaseModel] | None:
-        if isinstance(candidate, type) and issubclass(candidate, BaseModel):
-            return candidate
-        return None
-
-    @staticmethod
-    def _to_prompt_payload(payload: Any) -> dict[str, Any]:
+    def _serialize_payload(payload: Any) -> str | None:
+        """Normalize supported payload types into a string for LLM consumption."""
         if payload is None:
-            return {}
-        if isinstance(payload, BaseModel):
-            return payload.model_dump()
-        if isinstance(payload, dict):
+            return None
+        if isinstance(payload, str):
             return payload
-        return {"input": payload}
-
+        if isinstance(payload, BaseModel):
+            return payload.model_dump_json(indent=2)
+        if isinstance(payload, dict):
+            return json.dumps(payload, indent=2)
+        return str(payload)
 
     def build_contextual_instructions(self, payload: Any = None) -> str:
         """Build instructions with automatic context injection from pipeline state.
@@ -166,22 +143,7 @@ class ContextAgent(Agent[TContext]):
             This method requires self._context to be set.
         """
         # Convert payload to string
-        if isinstance(payload, str):
-            current_input = payload
-        elif isinstance(payload, BaseModel):
-            current_input = payload.model_dump_json(indent=2)
-        elif isinstance(payload, dict):
-            import json
-            current_input = json.dumps(payload, indent=2)
-        elif payload is None:
-            current_input = None
-        else:
-            current_input = str(payload)
-
-        # Get context
-        if self._context is None:
-            # Fallback to regular instruction building if no context
-            return current_input or ""
+        current_input = self._serialize_payload(payload)
 
         state = self._context.state
 
@@ -197,8 +159,7 @@ class ContextAgent(Agent[TContext]):
 
             # Get values for each placeholder
             for placeholder in placeholders:
-                # Get the value with the appropriate wrapper
-                # If no wrapper is registered, use the identity wrapper, which just returns the value as is
+                # Try state attribute first
                 value = state.get_with_wrapper(placeholder, self._context_wrappers.get(placeholder, identity_wrapper))
                 if value is not None:
                     context_dict[placeholder] = str(value)
@@ -237,8 +198,8 @@ class ContextAgent(Agent[TContext]):
 
         This allows usage like: result = await agent(input_data)
 
-        When called with tracker provided, uses the agent_step function for full
-        tracking/tracing. Otherwise, uses ContextRunner.
+        When called with tracker provided (or available from context), uses the agent_step
+        function for full tracking/tracing. Otherwise, uses ContextRunner.
 
         Note: When calling directly without tracker, input validation
         is relaxed to allow string inputs even if agent has a defined input_model.
@@ -246,32 +207,24 @@ class ContextAgent(Agent[TContext]):
         Args:
             payload: Input data for the agent
             group_id: Optional group ID for tracking. Must be provided explicitly when needed.
-            tracker: Optional RuntimeTracker for execution with tracking
+            tracker: Optional RuntimeTracker for execution with tracking.
+                    If not provided, will attempt to get from context via get_current_tracker().
 
         Returns:
             Parsed output if in pipeline context, otherwise RunResult
         """
         # Build instructions with automatic context injection if enabled
-        if self.auto_inject_context and self._context is not None:
-            instructions = self.build_contextual_instructions(payload)
-        else:
-            # Build prompt without validation
-            if isinstance(payload, str):
-                instructions = payload
-            elif isinstance(payload, BaseModel):
-                instructions = payload.model_dump_json(indent=2)
-            elif isinstance(payload, dict):
-                import json
-                instructions = json.dumps(payload, indent=2)
-            elif payload is None and isinstance(self.instructions, str):
-                instructions = self.instructions
-            else:
-                instructions = str(payload)
+        instructions = self.build_contextual_instructions(payload)
 
-        # If tracker is provided, use agent_step function for full tracking
+        # Auto-detect tracker from context if not explicitly provided
+        if tracker is None:
+            from agentz.agent.tracker import get_current_tracker
+            tracker = get_current_tracker()
+
+        # If tracker is available (explicitly or from context), use agent_step for full tracking
         if tracker:
-            from agentz.runner.executor import agent_step
-            
+            from agentz.agent.executor import agent_step
+
             result = await agent_step(
                 tracker=tracker,
                 agent=self,
@@ -281,57 +234,12 @@ class ContextAgent(Agent[TContext]):
             # Extract final output for cleaner API
             output = result.final_output if hasattr(result, 'final_output') else result
 
-            # Automatic iteration tracking based on role
-            if self._role and self._context:
-                from agentz.runner.utils import serialize_output, record_structured_payload
-
-                state = getattr(self._context, "state", None)
-                try:
-                    iteration = self._context.current_iteration
-
-                    # Special handling for "observe" role - set iteration.observation
-                    if self._role == "observe":
-                        # Extract observations field if output is a BaseModel with that field
-                        if isinstance(output, BaseModel) and hasattr(output, 'observations'):
-                            iteration.observation = output.observations
-                        else:
-                            serialized = serialize_output(output)
-                            iteration.observation = serialized
-
-                    # Record structured payload for all roles
-                    record_structured_payload(state, output, context_label=self._role)
-                except Exception:
-                    # Silently skip if context/iteration not available
-                    pass
-
-                if state is not None and self._role == "writer":
-                    try:
-                        if output is not None:
-                            state.final_report = serialize_output(output)
-                        elif state.final_report is None:
-                            state.final_report = ""
-                    except Exception:
-                        # If serialization fails, fall back to string coercion
-                        if output is not None:
-                            state.final_report = str(output)
-                        elif state.final_report is None:
-                            state.final_report = ""
-
             return output
 
-        # Otherwise, use ContextRunner to execute the agent
-        from agentz.runner import ContextRunner
-
-        result = await ContextRunner.run(
-            starting_agent=self,
-            input=instructions,
-        )
-
-        return result
 
     async def parse_output(self, run_result: RunResult) -> RunResult:
         """Apply legacy string parser only when no structured output is configured."""
-        if self.output_parser and self.output_model is None:
+        if self.output_parser and self.output_type is None:
             # import ipdb
             # ipdb.set_trace()
             run_result.final_output = self.output_parser(run_result.final_output)

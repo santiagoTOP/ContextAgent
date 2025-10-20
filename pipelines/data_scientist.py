@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 from typing import Any
-
 from pydantic import BaseModel
 
-from agentz.agent.base import ContextAgent
-from agentz.context.context import Context
-from agentz.runner import execute_tools
+from agentz.agent import ContextAgent, execute_tools
+from agentz.context import Context
 from pipelines.base import BasePipeline, autotracing
 
 
@@ -40,30 +38,10 @@ class DataScientistPipeline(BasePipeline):
         llm = self.config.llm.main_model
 
         # Create manager agents with explicit dependencies
-        self.observe_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="observe",
-            llm=llm,
-        )
-        self.evaluate_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="evaluate",
-            llm=llm,
-        )
-        self.routing_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="routing",
-            llm=llm,
-        )
-        self.writer_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="writer",
-            llm=llm,
-        )
+        self.observe_agent = ContextAgent(self.context, profile="observe", llm=llm)
+        self.evaluate_agent = ContextAgent(self.context, profile="evaluate", llm=llm)
+        self.routing_agent = ContextAgent(self.context, profile="routing", llm=llm)
+        self.writer_agent = ContextAgent(self.context, profile="writer", llm=llm)
 
         # Create tool agents as dictionary
         tool_agent_names = [
@@ -75,18 +53,10 @@ class DataScientistPipeline(BasePipeline):
             "visualization_agent",
         ]
         self.tool_agents = {
-            name: ContextAgent.from_profile(
-                context=self.context,
-                config=self.config,
-                role=name.removesuffix("_agent"),
-                llm=llm,
-            )
+            name: ContextAgent(self.context, profile=name.removesuffix("_agent"), llm=llm, name=name)
             for name in tool_agent_names
         }
 
-        # Update all agents with tool_agents reference
-        for agent in [self.observe_agent, self.evaluate_agent, self.routing_agent, self.writer_agent]:
-            agent._tool_agents = self.tool_agents
 
     @autotracing()
     async def run(self, query: DataScienceQuery) -> Any:
@@ -102,23 +72,23 @@ class DataScientistPipeline(BasePipeline):
             self.iterate()
 
             # Observe → Evaluate → Route → Tools
-            observe_output = await self.observe_agent(query, group_id=self._current_group_id, tracker=self.runtime_tracker)
-            evaluate_output = await self.evaluate_agent(observe_output, group_id=self._current_group_id, tracker=self.runtime_tracker)
+            observe_output = await self.observe_agent(query, group_id=self._current_group_id)
+            evaluate_output = await self.evaluate_agent(observe_output, group_id=self._current_group_id)
 
             if not self.context.state.complete:
-                routing_output = await self.routing_agent(evaluate_output, group_id=self._current_group_id, tracker=self.runtime_tracker)
+                routing_output = await self.routing_agent(evaluate_output, group_id=self._current_group_id)
                 await execute_tools(
                     route_plan=routing_output,
                     tool_agents=self.tool_agents,
                     group_id=self._current_group_id,
                     context=self.context,
-                    agent_step_fn=self.agent_step,
+                    tracker=self.runtime_tracker,
                     update_printer_fn=self.update_printer,
                 )
 
         # Phase 3: Final report generation
         self.update_printer("research", "Research workflow complete", is_done=True)
-        await self.writer_agent(self.context.state.findings_text(), group_id=self._current_group_id, tracker=self.runtime_tracker)
+        await self.writer_agent(self.context.state.findings_text(), group_id=self._current_group_id)
 
         # Phase 4: Finalization
         final_result = self.context.state.final_report

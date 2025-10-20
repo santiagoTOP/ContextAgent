@@ -21,38 +21,131 @@ class RuntimeTracker:
     """Manages runtime state and tracking for agent execution.
 
     This class encapsulates the runtime infrastructure needed for agent execution including:
+    - Ownership of Printer and Reporter instances
     - Tracing configuration and context creation
-    - Printer for status updates
-    - Reporter for recording execution events
     - Iteration tracking
     - Pipeline-scoped data store for sharing objects between agents
+
+    RuntimeTracker is the single source of truth for all runtime infrastructure.
     """
 
     def __init__(
         self,
-        printer: Optional[Printer] = None,
+        console: Any,
         enable_tracing: bool = True,
         trace_sensitive: bool = False,
         iteration: int = 0,
         experiment_id: Optional[str] = None,
-        reporter: Optional[RunReporter] = None,
     ):
         """Initialize runtime tracker.
 
         Args:
-            printer: Optional Printer instance for status updates
+            console: Console instance for creating printer
             enable_tracing: Whether tracing is enabled
             trace_sensitive: Whether to include sensitive data in traces
             iteration: Current iteration number (for iterative workflows)
             experiment_id: Optional experiment ID for data store tracking
-            reporter: Optional reporter for recording execution events
         """
-        self.printer = printer
+        # Store dependencies for creating components
+        self.console = console
         self.enable_tracing = enable_tracing
         self.trace_sensitive = trace_sensitive
         self.iteration = iteration
-        self.reporter = reporter
+        self.experiment_id = experiment_id
+
+        # Components owned by tracker (created on-demand)
+        self._printer: Optional[Printer] = None
+        self._reporter: Optional[RunReporter] = None
         self.data_store = DataStore(experiment_id=experiment_id)
+
+    @property
+    def printer(self) -> Optional[Printer]:
+        """Get the printer instance."""
+        return self._printer
+
+    @property
+    def reporter(self) -> Optional[RunReporter]:
+        """Get the reporter instance."""
+        return self._reporter
+
+    def start_printer(self) -> Printer:
+        """Create and return printer if not exists."""
+        if self._printer is None:
+            self._printer = Printer(self.console)
+        return self._printer
+
+    def stop_printer(self) -> None:
+        """Stop printer and finalize reporter."""
+        if self._printer is not None:
+            self._printer.end()
+            self._printer = None
+        if self._reporter is not None:
+            self._reporter.finalize()
+            self._reporter.print_terminal_report()
+
+    def initialize_reporter(
+        self,
+        base_dir: Any,
+        pipeline_slug: str,
+        workflow_name: str,
+        experiment_id: str,
+        config: Any,
+    ) -> RunReporter:
+        """Create and start reporter."""
+        if self._reporter is None:
+            self._reporter = RunReporter(
+                base_dir=base_dir,
+                pipeline_slug=pipeline_slug,
+                workflow_name=workflow_name,
+                experiment_id=experiment_id,
+                console=self.console,
+            )
+        self._reporter.start(config)
+        return self._reporter
+
+    def start_group(
+        self,
+        group_id: str,
+        *,
+        title: Optional[str] = None,
+        border_style: Optional[str] = None,
+        iteration: Optional[int] = None,
+    ) -> None:
+        """Start a printer group and notify the reporter."""
+        if self._reporter:
+            self._reporter.record_group_start(
+                group_id=group_id,
+                title=title,
+                border_style=border_style,
+                iteration=iteration,
+            )
+        if self._printer:
+            self._printer.start_group(
+                group_id,
+                title=title,
+                border_style=border_style,
+            )
+
+    def end_group(
+        self,
+        group_id: str,
+        *,
+        is_done: bool = True,
+        title: Optional[str] = None,
+    ) -> None:
+        """End a printer group and notify the reporter."""
+        if self._reporter:
+            self._reporter.record_group_end(
+                group_id=group_id,
+                is_done=is_done,
+                title=title,
+            )
+        if self._printer:
+            self._printer.end_group(
+                group_id,
+                is_done=is_done,
+                title=title,
+            )
 
     def trace_context(self, name: str, metadata: Optional[Dict[str, Any]] = None):
         """Create a trace context manager.
@@ -147,6 +240,7 @@ class RuntimeTracker:
                 content,
                 border_style=border_style,
                 iteration=iteration,
+                group_id=group_id,
             )
 
     @contextmanager

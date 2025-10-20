@@ -5,13 +5,15 @@ from typing import Any, Dict, Optional
 
 from loguru import logger
 
+from agentz.agent.executor import agent_step
+
 
 async def execute_tool_plan(
     plan: Any,
     tool_agents: Dict[str, Any],
     group_id: str,
     context: Any,
-    agent_step_fn: Any,
+    tracker: Any,
     update_printer_fn: Optional[Any] = None,
 ) -> None:
     """Execute a routing plan with tool agents.
@@ -21,7 +23,7 @@ async def execute_tool_plan(
         tool_agents: Dict mapping agent names to agent instances
         group_id: Group ID for printer updates
         context: Pipeline context with state
-        agent_step_fn: Function to execute agent steps
+        tracker: RuntimeTracker for agent execution
         update_printer_fn: Optional function for printer updates
     """
     # Import here to avoid circular dependency
@@ -47,7 +49,8 @@ async def execute_tool_plan(
                 )
             return output
 
-        raw_result = await agent_step_fn(
+        raw_result = await agent_step(
+            tracker=tracker,
             agent=agent,
             instructions=task.model_dump_json(),
             span_name=task.agent,
@@ -94,7 +97,7 @@ async def execute_tools(
     tool_agents: Dict[str, Any],
     group_id: str,
     context: Any,
-    agent_step_fn: Any,
+    tracker: Any,
     update_printer_fn: Optional[Any] = None,
 ) -> None:
     """Execute tool agents based on routing plan.
@@ -104,14 +107,14 @@ async def execute_tools(
         tool_agents: Dict mapping agent names to agent instances
         group_id: Group ID for printer updates
         context: Pipeline context with state
-        agent_step_fn: Function to execute agent steps
+        tracker: RuntimeTracker for agent execution
         update_printer_fn: Optional function for printer updates
     """
     plan = route_plan
 
     if plan and plan.tasks:
         await execute_tool_plan(
-            plan, tool_agents, group_id, context, agent_step_fn, update_printer_fn
+            plan, tool_agents, group_id, context, tracker, update_printer_fn
         )
 
 

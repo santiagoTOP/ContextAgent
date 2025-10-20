@@ -9,8 +9,7 @@ from loguru import logger
 from rich.console import Console
 
 from agentz.utils.config import BaseConfig, resolve_config
-from agentz.runner import (
-    AgentExecutor,
+from agentz.agent import (
     RuntimeTracker,
 )
 from agentz.artifacts import RunReporter
@@ -49,8 +48,6 @@ class BasePipeline:
             BasePipeline(BaseConfig(provider="openai", data={"path": "data.csv"}))
         """
         self.console = Console()
-        self._printer: Optional[Printer] = None
-        self.reporter: Optional[RunReporter] = None
 
         # Resolve configuration using the new unified API
         self.config = resolve_config(config)
@@ -94,9 +91,14 @@ class BasePipeline:
         # Setup tracing configuration and logging
         self._setup_tracing()
 
-        # Initialize runtime tracker and executor
-        self._runtime_tracker: Optional[RuntimeTracker] = None
-        self._executor: Optional[AgentExecutor] = None
+        # Create runtime tracker immediately (owns all runtime infrastructure)
+        self._runtime_tracker = RuntimeTracker(
+            console=self.console,
+            enable_tracing=self.enable_tracing,
+            trace_sensitive=self.trace_sensitive,
+            iteration=self.iteration,
+            experiment_id=self.experiment_id,
+        )
 
     # ============================================
     # Core Properties
@@ -121,57 +123,32 @@ class BasePipeline:
 
     @property
     def printer(self) -> Optional[Printer]:
-        return self._printer
+        """Delegate to tracker."""
+        return self._runtime_tracker.printer
+
+    @property
+    def reporter(self) -> Optional[RunReporter]:
+        """Delegate to tracker."""
+        return self._runtime_tracker.reporter
 
     @property
     def runtime_tracker(self) -> RuntimeTracker:
-        """Get or create the runtime tracker."""
-        if self._runtime_tracker is None:
-            self._runtime_tracker = RuntimeTracker(
-                printer=self.printer,
-                enable_tracing=self.enable_tracing,
-                trace_sensitive=self.trace_sensitive,
-                iteration=self.iteration,
-                experiment_id=self.experiment_id,
-                reporter=self.reporter,
-            )
-        else:
-            # Update iteration in existing tracker
-            self._runtime_tracker.iteration = self.iteration
-            self._runtime_tracker.printer = self.printer
-            self._runtime_tracker.reporter = self.reporter
+        """Get the runtime tracker (created in __init__)."""
+        # Update iteration (only thing that changes during execution)
+        self._runtime_tracker.iteration = self.iteration
         return self._runtime_tracker
-
-    @property
-    def executor(self) -> AgentExecutor:
-        """Get or create the agent executor."""
-        # Refresh runtime tracker so iteration/printer stay in sync across loops
-        tracker = self.runtime_tracker
-
-        if self._executor is None:
-            self._executor = AgentExecutor(tracker)
-        else:
-            # Executor holds a reference to the tracker; update it in case it changed
-            self._executor.tracker = tracker
-        return self._executor
 
     # ============================================
     # Printer & Reporter Management
     # ============================================
 
     def start_printer(self) -> Printer:
-        if self._printer is None:
-            self._printer = Printer(self.console)
-        return self._printer
+        """Delegate to tracker."""
+        return self._runtime_tracker.start_printer()
 
     def stop_printer(self) -> None:
-        """Stop the live printer and finalize reporter if active."""
-        if self._printer is not None:
-            self._printer.end()
-            self._printer = None
-        if self.reporter is not None:
-            self.reporter.finalize()
-            self.reporter.print_terminal_report()
+        """Delegate to tracker."""
+        self._runtime_tracker.stop_printer()
 
     def start_group(
         self,
@@ -181,20 +158,13 @@ class BasePipeline:
         border_style: Optional[str] = None,
         iteration: Optional[int] = None,
     ) -> None:
-        """Start a printer group and notify the reporter."""
-        if self.reporter:
-            self.reporter.record_group_start(
-                group_id=group_id,
-                title=title,
-                border_style=border_style,
-                iteration=iteration,
-            )
-        if self.printer:
-            self.printer.start_group(
-                group_id,
-                title=title,
-                border_style=border_style,
-            )
+        """Delegate to tracker."""
+        self._runtime_tracker.start_group(
+            group_id,
+            title=title,
+            border_style=border_style,
+            iteration=iteration,
+        )
 
     def end_group(
         self,
@@ -203,19 +173,12 @@ class BasePipeline:
         is_done: bool = True,
         title: Optional[str] = None,
     ) -> None:
-        """Mark a printer group complete and notify the reporter."""
-        if self.reporter:
-            self.reporter.record_group_end(
-                group_id=group_id,
-                is_done=is_done,
-                title=title,
-            )
-        if self.printer:
-            self.printer.end_group(
-                group_id,
-                is_done=is_done,
-                title=title,
-            )
+        """Delegate to tracker."""
+        self._runtime_tracker.end_group(
+            group_id,
+            is_done=is_done,
+            title=title,
+        )
 
     # ============================================
     # Initialization & Setup
@@ -260,15 +223,13 @@ class BasePipeline:
             # Use outputs_dir override if provided, otherwise use config value
             effective_outputs_dir = Path(outputs_dir) if outputs_dir else Path(self.config.pipeline.get("outputs_dir", "outputs"))
 
-            if self.reporter is None:
-                self.reporter = RunReporter(
-                    base_dir=effective_outputs_dir,
-                    pipeline_slug=self.pipeline_slug,
-                    workflow_name=effective_workflow_name,
-                    experiment_id=self.experiment_id,
-                    console=self.console,
-                )
-            self.reporter.start(self.config)
+            self._runtime_tracker.initialize_reporter(
+                base_dir=effective_outputs_dir,
+                pipeline_slug=self.pipeline_slug,
+                workflow_name=effective_workflow_name,
+                experiment_id=self.experiment_id,
+                config=self.config,
+            )
 
         # Conditionally start printer and update workflow
         if enable_printer:
@@ -321,13 +282,6 @@ class BasePipeline:
     def span_context(self, span_factory, **kwargs):
         """Create a span context - delegates to RuntimeTracker."""
         return self.runtime_tracker.span_context(span_factory, **kwargs)
-
-    async def agent_step(self, *args, **kwargs) -> Any:
-        """Run an agent with span tracking and optional output parsing.
-
-        Delegates to AgentExecutor.agent_step(). See AgentExecutor.agent_step() for full documentation.
-        """
-        return await self.executor.agent_step(*args, **kwargs)
 
     def update_printer(self, *args, **kwargs) -> None:
         """Update printer status if printer is active.
@@ -395,7 +349,9 @@ class BasePipeline:
 
         try:
             with trace_ctx:
-                yield trace_ctx
+                # Activate tracker so agents can access it automatically via get_current_tracker()
+                with self.runtime_tracker.activate():
+                    yield trace_ctx
         finally:
             # Only cleanup resources that were created by this context
             # Note: stop_printer() handles both printer and reporter cleanup
