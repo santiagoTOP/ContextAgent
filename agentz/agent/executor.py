@@ -1,70 +1,14 @@
 """Core agent execution primitives."""
 
 import asyncio
-import json
-import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Optional
 
 from agents import Runner
 from agents.tracing.create import agent_span, function_span
 from pydantic import BaseModel
 
 from agentz.agent.tracker import RuntimeTracker
-
-
-@dataclass
-class PrinterConfig:
-    """Configuration for printer updates during step execution."""
-    key: Optional[str] = None
-    title: Optional[str] = None
-    start_message: Optional[str] = None
-    done_message: Optional[str] = None
-
-
-@dataclass
-class AgentStep:
-    """Represents a single agent execution step.
-
-    This encapsulates all the information needed to execute an agent:
-    - The agent instance
-    - Instructions (static or dynamic via callable)
-    - Span configuration for tracing
-    - Output model for parsing
-    - Printer configuration for status updates
-    """
-
-    agent: Any
-    instructions: Union[str, Callable[[], str]]
-    span_name: str
-    span_type: str = "agent"
-    output_model: Optional[type[BaseModel]] = None
-    sync: bool = False
-    printer_config: Optional[PrinterConfig] = None
-    span_kwargs: Dict[str, Any] = field(default_factory=dict)
-
-    def get_instructions(self) -> str:
-        """Get instructions, evaluating callable if needed.
-
-        Returns:
-            Instructions string
-        """
-        if callable(self.instructions):
-            return self.instructions()
-        return self.instructions
-
-    def get_printer_key(self, iteration: int = 0) -> Optional[str]:
-        """Get the printer key, adding iteration prefix if configured.
-
-        Args:
-            iteration: Current iteration number
-
-        Returns:
-            Printer key with iteration prefix, or None if not configured
-        """
-        if not self.printer_config or not self.printer_config.key:
-            return None
-        return f"iter:{iteration}:{self.printer_config.key}"
+from agentz.utils.helpers import extract_final_output, parse_to_model, serialize_content
 
 
 async def agent_step(
@@ -98,56 +42,23 @@ async def agent_step(
     Returns:
         Parsed output if output_model provided, otherwise Runner result
     """
-    # Extract agent name for auto-detection
-    agent_name = getattr(agent, "name", getattr(agent, "__class__", type("obj", (), {})).__name__)
-
-    # Auto-detect span_name from agent if not provided
-    if span_name is None:
-        span_name = str(agent_name)
-
-    # Auto-detect printer_key from agent if not provided
-    if printer_key is None:
-        printer_key = str(agent_name)
-
-    # Auto-detect printer_title from agent if not provided
-    if printer_title is None:
-        # Capitalize first letter and add "ing" suffix
-        title_base = str(agent_name).capitalize()
-        printer_title = f"{title_base}"
-
     span_factory = agent_span if span_type == "agent" else function_span
 
-    reporter = tracker.reporter
-    step_id: Optional[str] = None
-    iteration_idx = tracker.current_iteration_index
-    if reporter:
-        step_id = f"{iteration_idx}-{span_name}-{time.time_ns()}"
-        reporter.record_agent_step_start(
-            step_id=step_id,
-            agent_name=str(agent_name),
-            span_name=span_name,
-            iteration=iteration_idx,
-            group_id=f"iter-{iteration_idx}" if iteration_idx > 0 else None,
-            printer_title=printer_title,
-        )
-
-    full_printer_key: Optional[str] = None
-    if printer_key:
-        full_printer_key = f"iter:{iteration_idx}:{printer_key}"
-        tracker.update_printer(
-            full_printer_key,
-            "Working...",
-            title=printer_title or printer_key,
-            border_style=printer_border_style,
-            # group_id auto-derived by tracker from current_iteration_index
-        )
+    handle = tracker.start_agent_step(
+        agent=agent,
+        span_name=span_name,
+        span_factory=span_factory,
+        span_kwargs=span_kwargs,
+        printer_key=printer_key,
+        printer_title=printer_title,
+        printer_border_style=printer_border_style,
+    )
 
     status = "success"
     error_message: Optional[str] = None
-    start_time = time.perf_counter()
 
     try:
-        with tracker.span_context(span_factory, name=span_name, **span_kwargs) as span:
+        with tracker.span_scope(handle) as span:
             # Activate context so tools can access it
             with tracker.activate():
                 if sync:
@@ -160,65 +71,23 @@ async def agent_step(
                 if isinstance(agent, ContextAgent):
                     result = await agent.parse_output(result)
 
-            raw_output = getattr(result, "final_output", result)
+            raw_output = extract_final_output(result)
+            panel_content = serialize_content(raw_output)
 
-            # Update printer status and emit detailed output as a standalone panel
-            if full_printer_key:
-                tracker.update_printer(
-                    full_printer_key,
-                    "Completed",
-                    is_done=True,
-                    title=printer_title or printer_key,
-                    # group_id auto-derived by tracker from current_iteration_index
-                    border_style=printer_border_style,
-                )
-
-                # Extract content from raw_output
-                if hasattr(raw_output, 'output'):
-                    panel_content = str(raw_output.output)
-                elif isinstance(raw_output, BaseModel):
-                    panel_content = raw_output.model_dump_json(indent=2)
-                elif isinstance(raw_output, dict):
-                    panel_content = json.dumps(raw_output, indent=2)
-                else:
-                    panel_content = str(raw_output)
-
-                if panel_content.strip():
-                    tracker.log_panel(
-                        printer_title or printer_key,
-                        panel_content,
-                        border_style=printer_border_style,
-                        iteration=iteration_idx,
-                        # group_id auto-derived by tracker from iteration
-                    )
+            tracker.log_agent_panel(handle, panel_content)
 
             if output_model:
-                if isinstance(raw_output, output_model):
-                    output = raw_output
-                elif isinstance(raw_output, BaseModel):
-                    output = output_model.model_validate(raw_output.model_dump())
-                elif isinstance(raw_output, (dict, list)):
-                    output = output_model.model_validate(raw_output)
-                elif isinstance(raw_output, (str, bytes, bytearray)):
-                    output = output_model.model_validate_json(raw_output)
-                else:
-                    output = output_model.model_validate(raw_output)
-                if span and hasattr(span, "set_output"):
-                    span.set_output(output.model_dump())
-                return output
+                return parse_to_model(raw_output, output_model, span)
             else:
-                if span and hasattr(span, "set_output"):
-                    span.set_output({"output_preview": str(getattr(result, "final_output", result))[:200]})
+                tracker.preview_output(handle, panel_content[:200])
                 return result
     except Exception as exc:  # noqa: BLE001 - propagate after logging
         status = "error"
         error_message = str(exc)
         raise
     finally:
-        if reporter and step_id is not None:
-            reporter.record_agent_step_end(
-                step_id=step_id,
-                status=status,
-                duration_seconds=time.perf_counter() - start_time,
-                error=error_message,
-            )
+        tracker.finish_agent_step(
+            handle,
+            status=status,
+            error=error_message,
+        )

@@ -2,6 +2,8 @@
 
 from contextlib import nullcontext, contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass, field
+import time
 from typing import Any, Dict, Optional
 
 from agents.tracing.create import trace
@@ -15,6 +17,46 @@ _current_runtime_tracker: ContextVar[Optional['RuntimeTracker']] = ContextVar(
     'current_runtime_tracker',
     default=None
 )
+
+
+@dataclass
+class AgentStepHandle:
+    """Internal handle for coordinating tracker-managed agent step state."""
+
+    step_id: Optional[str]
+    span_factory: Any
+    span_name: str
+    span_kwargs: Dict[str, Any] = field(default_factory=dict)
+    printer_key: Optional[str] = None
+    full_printer_key: Optional[str] = None
+    printer_title: Optional[str] = None
+    printer_border_style: Optional[str] = None
+    iteration_idx: int = 0
+    start_time: float = 0.0
+    span: Any = None
+    agent_name: str = ""
+
+
+def _derive_agent_metadata(
+    agent: Any,
+    span_name: Optional[str],
+    printer_key: Optional[str],
+    printer_title: Optional[str],
+) -> tuple[str, str, Optional[str], Optional[str]]:
+    """Resolve agent-related metadata with sensible defaults."""
+    agent_name = getattr(agent, "name", getattr(agent, "__class__", type("obj", (), {})).__name__)
+
+    resolved_span_name = span_name or str(agent_name)
+    resolved_printer_key = printer_key or str(agent_name)
+
+    if printer_title:
+        resolved_printer_title = printer_title
+    elif printer_key:
+        resolved_printer_title = printer_key
+    else:
+        resolved_printer_title = str(agent_name).capitalize()
+
+    return str(agent_name), resolved_span_name, resolved_printer_key, resolved_printer_title
 
 
 class RuntimeTracker:
@@ -81,6 +123,120 @@ class RuntimeTracker:
             except (ValueError, AttributeError):
                 pass
         return 0
+
+    def start_agent_step(
+        self,
+        *,
+        agent: Any,
+        span_name: Optional[str],
+        span_factory,
+        span_kwargs: Optional[Dict[str, Any]] = None,
+        printer_key: Optional[str] = None,
+        printer_title: Optional[str] = None,
+        printer_border_style: Optional[str] = None,
+    ) -> AgentStepHandle:
+        """Initialize tracker artifacts for an agent step."""
+        agent_name, resolved_span_name, resolved_printer_key, resolved_printer_title = _derive_agent_metadata(
+            agent,
+            span_name,
+            printer_key,
+            printer_title,
+        )
+
+        iteration_idx = self.current_iteration_index
+        step_id: Optional[str] = None
+
+        if self._reporter:
+            step_id = f"{iteration_idx}-{resolved_span_name}-{time.time_ns()}"
+            self._reporter.record_agent_step_start(
+                step_id=step_id,
+                agent_name=str(agent_name),
+                span_name=resolved_span_name,
+                iteration=iteration_idx,
+                group_id=f"iter-{iteration_idx}" if iteration_idx > 0 else None,
+                printer_title=resolved_printer_title,
+            )
+
+        full_printer_key: Optional[str] = None
+        if resolved_printer_key:
+            full_printer_key = f"iter:{iteration_idx}:{resolved_printer_key}"
+            self.update_printer(
+                full_printer_key,
+                "Working...",
+                title=resolved_printer_title,
+                border_style=printer_border_style,
+            )
+
+        return AgentStepHandle(
+            step_id=step_id,
+            span_factory=span_factory,
+            span_name=resolved_span_name,
+            span_kwargs=dict(span_kwargs or {}),
+            printer_key=resolved_printer_key,
+            full_printer_key=full_printer_key,
+            printer_title=resolved_printer_title,
+            printer_border_style=printer_border_style,
+            iteration_idx=iteration_idx,
+            start_time=time.perf_counter(),
+            agent_name=str(agent_name),
+        )
+
+    def finish_agent_step(
+        self,
+        handle: AgentStepHandle,
+        *,
+        status: str,
+        error: Optional[str] = None,
+        success_message: str = "Completed",
+        failure_message: str = "Failed",
+    ) -> None:
+        """Finalize tracker state for an agent step."""
+        if handle.full_printer_key:
+            message = success_message if status == "success" else failure_message
+            self.update_printer(
+                handle.full_printer_key,
+                message,
+                is_done=True,
+                title=handle.printer_title,
+                border_style=handle.printer_border_style,
+            )
+
+        if self._reporter and handle.step_id is not None:
+            self._reporter.record_agent_step_end(
+                step_id=handle.step_id,
+                status=status,
+                duration_seconds=time.perf_counter() - handle.start_time,
+                error=error,
+            )
+
+    @contextmanager
+    def span_scope(self, handle: AgentStepHandle):
+        """Context manager for span lifecycle tied to an agent step handle."""
+        kwargs = dict(handle.span_kwargs)
+        kwargs.setdefault("name", handle.span_name)
+        with self.span_context(handle.span_factory, **kwargs) as span:
+            handle.span = span
+            yield span
+
+    def log_agent_panel(self, handle: AgentStepHandle, content: str) -> None:
+        """Render a standalone panel for the agent output if configured."""
+        if not content or not content.strip():
+            return
+        title = handle.printer_title or handle.printer_key
+        if not title:
+            return
+
+        self.log_panel(
+            title,
+            content,
+            border_style=handle.printer_border_style,
+            iteration=handle.iteration_idx,
+        )
+
+    def preview_output(self, handle: AgentStepHandle, preview: str) -> None:
+        """Attach an output preview to the active span."""
+        if handle.span and hasattr(handle.span, "set_output"):
+            handle.span.set_output({"output_preview": preview})
 
     def start_printer(self) -> Printer:
         """Create and return printer if not exists."""

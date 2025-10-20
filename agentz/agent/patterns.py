@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 from loguru import logger
 
 from agentz.agent.executor import agent_step
+from agentz.utils.helpers import extract_final_output, parse_to_model
 
 
 async def execute_tool_plan(
@@ -63,10 +64,17 @@ async def execute_tool_plan(
             output = raw_result
         elif hasattr(raw_result, "final_output_as"):
             output = raw_result.final_output_as(ToolAgentOutput)
-        elif hasattr(raw_result, "final_output"):
-            output = ToolAgentOutput(output=str(raw_result.final_output), sources=[])
         else:
-            output = ToolAgentOutput(output=str(raw_result), sources=[])
+            final_output = extract_final_output(raw_result)
+            if isinstance(final_output, ToolAgentOutput):
+                output = final_output
+            elif isinstance(final_output, str):
+                output = ToolAgentOutput(output=final_output, sources=[])
+            else:
+                try:
+                    output = parse_to_model(final_output, ToolAgentOutput)
+                except Exception:
+                    output = ToolAgentOutput(output=str(final_output), sources=[])
 
         try:
             state.record_payload(output)
@@ -109,5 +117,4 @@ async def execute_tools(
         await execute_tool_plan(
             plan, tool_agents, context, tracker, update_printer_fn
         )
-
 

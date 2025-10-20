@@ -11,6 +11,7 @@ from agents.run_context import TContext
 from agentz.llm.llm_setup import model_supports_json_and_tool_calls
 from agentz.utils.parsers import create_type_parser
 from agentz.context.conversation import identity_wrapper
+from agentz.utils.helpers import extract_final_output
 
 
 class ContextAgent(Agent[TContext]):
@@ -232,7 +233,7 @@ class ContextAgent(Agent[TContext]):
                 # No group_id - tracker auto-derives from context!
             )
             # Extract final output for cleaner API
-            output = result.final_output if hasattr(result, 'final_output') else result
+            output = extract_final_output(result)
 
             return output
 
