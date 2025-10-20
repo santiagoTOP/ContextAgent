@@ -32,25 +32,25 @@ class RuntimeTracker:
     def __init__(
         self,
         console: Any,
+        context: Optional[Any] = None,
         enable_tracing: bool = True,
         trace_sensitive: bool = False,
-        iteration: int = 0,
         experiment_id: Optional[str] = None,
     ):
         """Initialize runtime tracker.
 
         Args:
             console: Console instance for creating printer
+            context: Optional context reference for accessing current iteration
             enable_tracing: Whether tracing is enabled
             trace_sensitive: Whether to include sensitive data in traces
-            iteration: Current iteration number (for iterative workflows)
             experiment_id: Optional experiment ID for data store tracking
         """
         # Store dependencies for creating components
         self.console = console
+        self.context = context
         self.enable_tracing = enable_tracing
         self.trace_sensitive = trace_sensitive
-        self.iteration = iteration
         self.experiment_id = experiment_id
 
         # Components owned by tracker (created on-demand)
@@ -67,6 +67,20 @@ class RuntimeTracker:
     def reporter(self) -> Optional[RunReporter]:
         """Get the reporter instance."""
         return self._reporter
+
+    @property
+    def current_iteration_index(self) -> int:
+        """Get current iteration index from context (always fresh).
+
+        Returns:
+            Current iteration index, or 0 if no iteration is active
+        """
+        if self.context and hasattr(self.context, 'state'):
+            try:
+                return self.context.state.current_iteration.index
+            except (ValueError, AttributeError):
+                pass
+        return 0
 
     def start_printer(self) -> Printer:
         """Create and return printer if not exists."""
@@ -196,9 +210,11 @@ class RuntimeTracker:
             border_style: Optional border color
             group_id: Optional group to nest this item in
         """
-        # Auto-derive group_id from iteration if not explicitly provided
-        if group_id is None and self.iteration > 0:
-            group_id = f"iter-{self.iteration}"
+        # Auto-derive group_id from current iteration if not explicitly provided
+        if group_id is None:
+            iteration_idx = self.current_iteration_index
+            if iteration_idx > 0:
+                group_id = f"iter-{iteration_idx}"
 
         if self.reporter:
             self.reporter.record_status_update(
@@ -230,6 +246,13 @@ class RuntimeTracker:
         group_id: Optional[str] = None,
     ) -> None:
         """Proxy helper for rendering standalone panels via the printer."""
+        # Auto-derive group_id from iteration if not provided
+        if group_id is None and iteration is None:
+            iteration = self.current_iteration_index if self.current_iteration_index > 0 else None
+
+        if group_id is None and iteration is not None:
+            group_id = f"iter-{iteration}"
+
         if self.reporter:
             self.reporter.record_panel(
                 title=title,

@@ -36,6 +36,8 @@ class SimplePipeline(BasePipeline):
         # Initialize shared context (profiles + conversation state)
         self.context = Context(["profiles", "states"])
         self.context.state.max_time_minutes = self.max_time_minutes
+        # Set context reference on tracker for fresh iteration access
+        self._set_tracker_context(self.context)
         llm = self.config.llm.main_model
 
         # Bind agents from registered profiles with explicit dependencies
@@ -78,14 +80,14 @@ class SimplePipeline(BasePipeline):
             history=self.context.state.iteration_history(include_current=False) or "",
         )
 
-        group_id = f"iter-{self.iteration}"
-        routing_plan = await self.routing_agent(routing_input, group_id=group_id)
+        # No need for group_id - tracker auto-derives from context!
+        routing_plan = await self.routing_agent(routing_input)
         task = self._select_task(routing_plan)
 
         # Just pass the task query string directly - agent will handle it
         tool_payload = task.query
 
-        result = await self.tool_agent(tool_payload, group_id=group_id)
+        result = await self.tool_agent(tool_payload)
 
         if self.state:
             self.state.final_report = result.output

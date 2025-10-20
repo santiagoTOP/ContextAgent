@@ -40,6 +40,8 @@ class WebSearcherPipeline(BasePipeline):
         # Initialize context and profiles
         self.context = Context(["profiles", "states"])
         self.context.state.max_time_minutes = self.max_time_minutes
+        # Set context reference on tracker for fresh iteration access
+        self._set_tracker_context(self.context)
         llm = self.config.llm.main_model
 
         # Create manager agents with explicit dependencies
@@ -78,12 +80,12 @@ class WebSearcherPipeline(BasePipeline):
             query = self.context.state.formatted_query or ""
 
             # Observe → Evaluate → Plan → Execute Multiple Tools
-            group_id = f"iter-{self.iteration}"
-            observe_output = await self.observe_agent(query, group_id=group_id)
-            evaluate_output = await self.evaluate_agent(observe_output, group_id=group_id)
+            # No need for group_id - tracker auto-derives from context!
+            observe_output = await self.observe_agent(query)
+            evaluate_output = await self.evaluate_agent(observe_output)
 
             if not self.context.state.complete:
-                planning_output = await self.planning_agent(evaluate_output, group_id=group_id)
+                planning_output = await self.planning_agent(evaluate_output)
                 await execute_tools(
                     route_plan=planning_output,
                     tool_agents=self.tool_agents,

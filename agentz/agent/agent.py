@@ -193,7 +193,6 @@ class ContextAgent(Agent[TContext]):
         self,
         payload: Any = None,
         *,
-        group_id: Optional[str] = None,
         tracker: Optional[Any] = None,
     ) -> Any:
         """Make ContextAgent callable directly.
@@ -208,7 +207,6 @@ class ContextAgent(Agent[TContext]):
 
         Args:
             payload: Input data for the agent
-            group_id: Optional group ID for tracking. Must be provided explicitly when needed.
             tracker: Optional RuntimeTracker for execution with tracking.
                     If not provided, will attempt to get from context via get_current_tracker().
 
@@ -231,7 +229,7 @@ class ContextAgent(Agent[TContext]):
                 tracker=tracker,
                 agent=self,
                 instructions=instructions,
-                group_id=group_id,
+                # No group_id - tracker auto-derives from context!
             )
             # Extract final output for cleaner API
             output = result.final_output if hasattr(result, 'final_output') else result

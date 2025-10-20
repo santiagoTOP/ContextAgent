@@ -77,8 +77,6 @@ async def agent_step(
     sync: bool = False,
     printer_key: Optional[str] = None,
     printer_title: Optional[str] = None,
-    group_id: Optional[str] = None,
-    printer_group_id: Optional[str] = None,
     printer_border_style: Optional[str] = None,
     **span_kwargs
 ) -> Any:
@@ -94,8 +92,6 @@ async def agent_step(
         sync: Whether to run synchronously
         printer_key: Optional key for printer updates (auto-detected from agent.name if not provided)
         printer_title: Optional title for printer display (auto-detected from agent.name if not provided)
-        group_id: Optional group to nest this item in (alias for printer_group_id)
-        printer_group_id: Optional group to nest this item in (deprecated, use group_id)
         printer_border_style: Optional border color
         **span_kwargs: Additional kwargs for span (e.g., tools, input)
 
@@ -119,37 +115,31 @@ async def agent_step(
         title_base = str(agent_name).capitalize()
         printer_title = f"{title_base}"
 
-    # Support both group_id and printer_group_id (group_id takes precedence)
-    if group_id is not None:
-        printer_group_id = group_id
-    elif printer_group_id is None:
-        # Auto-derive group_id from iteration if not explicitly provided
-        printer_group_id = f"iter-{tracker.iteration}" if tracker.iteration > 0 else None
-
     span_factory = agent_span if span_type == "agent" else function_span
 
     reporter = tracker.reporter
     step_id: Optional[str] = None
+    iteration_idx = tracker.current_iteration_index
     if reporter:
-        step_id = f"{tracker.iteration}-{span_name}-{time.time_ns()}"
+        step_id = f"{iteration_idx}-{span_name}-{time.time_ns()}"
         reporter.record_agent_step_start(
             step_id=step_id,
             agent_name=str(agent_name),
             span_name=span_name,
-            iteration=tracker.iteration,
-            group_id=printer_group_id,
+            iteration=iteration_idx,
+            group_id=f"iter-{iteration_idx}" if iteration_idx > 0 else None,
             printer_title=printer_title,
         )
 
     full_printer_key: Optional[str] = None
     if printer_key:
-        full_printer_key = f"iter:{tracker.iteration}:{printer_key}"
+        full_printer_key = f"iter:{iteration_idx}:{printer_key}"
         tracker.update_printer(
             full_printer_key,
             "Working...",
             title=printer_title or printer_key,
             border_style=printer_border_style,
-            group_id=printer_group_id,
+            # group_id auto-derived by tracker from current_iteration_index
         )
 
     status = "success"
@@ -179,7 +169,7 @@ async def agent_step(
                     "Completed",
                     is_done=True,
                     title=printer_title or printer_key,
-                    group_id=printer_group_id,
+                    # group_id auto-derived by tracker from current_iteration_index
                     border_style=printer_border_style,
                 )
 
@@ -198,8 +188,8 @@ async def agent_step(
                         printer_title or printer_key,
                         panel_content,
                         border_style=printer_border_style,
-                        iteration=tracker.iteration,
-                        group_id=printer_group_id,
+                        iteration=iteration_idx,
+                        # group_id auto-derived by tracker from iteration
                     )
 
             if output_model:

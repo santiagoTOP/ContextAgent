@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
@@ -9,9 +9,6 @@ from agentz.profiles.base import Profile, load_all_profiles
 
 class Context:
     """Central coordinator for conversation state and iteration management."""
-
-    # Constants for iteration group IDs
-    ITERATION_GROUP_PREFIX = "iter"
 
     def __init__(
         self,
@@ -66,22 +63,20 @@ class Context:
             raise ValueError(f"Context module {name} not found")
         return self.context_modules[name]
 
-    def begin_iteration(self) -> Tuple[BaseIterationRecord, str]:
-        """Start a new iteration and return its record with group_id.
+    def begin_iteration(self) -> BaseIterationRecord:
+        """Start a new iteration and return its record.
 
         Automatically starts the conversation state timer on first iteration.
 
         Returns:
-            Tuple of (iteration_record, group_id) where group_id follows the pattern "iter-{index}"
+            The iteration record
         """
         # Lazy timer start: start on first iteration if not already started
         if self._state.started_at is None:
             self._state.start_timer()
 
         iteration = self._state.begin_iteration()
-        group_id = f"{self.ITERATION_GROUP_PREFIX}-{iteration.index}"
-
-        return iteration, group_id
+        return iteration
 
     def mark_iteration_complete(self) -> None:
         """Mark the current iteration as complete."""

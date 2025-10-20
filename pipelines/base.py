@@ -91,11 +91,12 @@ class BasePipeline:
         self._setup_tracing()
 
         # Create runtime tracker immediately (owns all runtime infrastructure)
+        # Context will be set by subclasses after they create it
         self._runtime_tracker = RuntimeTracker(
             console=self.console,
+            context=None,  # Set later via _set_tracker_context()
             enable_tracing=self.enable_tracing,
             trace_sensitive=self.trace_sensitive,
-            iteration=self.iteration,
             experiment_id=self.experiment_id,
         )
 
@@ -133,9 +134,17 @@ class BasePipeline:
     @property
     def runtime_tracker(self) -> RuntimeTracker:
         """Get the runtime tracker (created in __init__)."""
-        # Update iteration (only thing that changes during execution)
-        self._runtime_tracker.iteration = self.iteration
         return self._runtime_tracker
+
+    def _set_tracker_context(self, context: Any) -> None:
+        """Set the context reference on the runtime tracker.
+
+        Should be called by subclasses after creating their context.
+
+        Args:
+            context: The context object to set
+        """
+        self._runtime_tracker.context = context
 
     # ============================================
     # Printer & Reporter Management
@@ -378,9 +387,11 @@ class BasePipeline:
         Returns:
             The iteration record
         """
-        iteration, group_id = self.context.begin_iteration()
+        iteration = self.context.begin_iteration()
         self.iteration = iteration.index
 
+        # Derive group_id from iteration index
+        group_id = f"iter-{iteration.index}"
         display_title = title or f"Iteration {iteration.index}"
         self.start_group(
             group_id,
