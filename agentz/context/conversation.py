@@ -163,6 +163,11 @@ class ConversationState(BaseModel):
         lines = [f"- {agent_name}: {description}" for agent_name, description in self.available_agents.items()]
         return '\n'.join(lines)
 
+    @property
+    def findings(self) -> str:
+        """Return accumulated findings from all tool agents."""
+        return self.findings_text()
+
     def begin_iteration(self) -> BaseIterationRecord:
         iteration = self._iteration_model(index=len(self.iterations) + 1)
         self.iterations.append(iteration)
