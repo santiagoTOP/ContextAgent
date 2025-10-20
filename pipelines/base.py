@@ -138,13 +138,6 @@ class BasePipeline:
         self._runtime_tracker.iteration = self.iteration
         return self._runtime_tracker
 
-    @property
-    def executor(self) -> AgentExecutor:
-        """Get or create the agent executor."""
-        if self._executor is None:
-            self._executor = AgentExecutor(self._runtime_tracker)
-        return self._executor
-
     # ============================================
     # Printer & Reporter Management
     # ============================================
@@ -289,13 +282,6 @@ class BasePipeline:
     def span_context(self, span_factory, **kwargs):
         """Create a span context - delegates to RuntimeTracker."""
         return self.runtime_tracker.span_context(span_factory, **kwargs)
-
-    async def agent_step(self, *args, **kwargs) -> Any:
-        """Run an agent with span tracking and optional output parsing.
-
-        Delegates to AgentExecutor.agent_step(). See AgentExecutor.agent_step() for full documentation.
-        """
-        return await self.executor.agent_step(*args, **kwargs)
 
     def update_printer(self, *args, **kwargs) -> None:
         """Update printer status if printer is active.

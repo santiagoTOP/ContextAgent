@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Optional
+from typing import Any, Optional, Callable
 
 from pydantic import BaseModel
 
@@ -10,6 +10,7 @@ from agents import Agent, RunResult
 from agents.run_context import TContext
 from agentz.llm.llm_setup import model_supports_json_and_tool_calls
 from agentz.utils.parsers import create_type_parser
+from agentz.context.utils import identity_wrapper
 
 
 class ContextAgent(Agent[TContext]):
@@ -95,6 +96,16 @@ class ContextAgent(Agent[TContext]):
         self._context = context  # Context reference for state access
         self._identifier = resolved_identifier  # Identifier used for profile lookup/iteration tracking
         self._profile = resolved_profile  # Profile metadata for runtime templates
+        
+        self._context_wrappers = {}
+    
+    def register_context_wrapper(self, field_name: str, wrapper: Callable[[Any], Any] = identity_wrapper) -> None:
+        """Register a context wrapper for a context field."""
+        self._context_wrappers[field_name] = wrapper
+
+    def get_context_with_wrapper(self, field_name: str) -> Any:
+        """Get a context wrapper for a field name."""
+        return self._context.get_with_wrapper(field_name, self._context_wrappers.get(field_name, identity_wrapper))
 
     @property
     def role(self) -> str:
@@ -149,7 +160,7 @@ class ContextAgent(Agent[TContext]):
             # Get values for each placeholder
             for placeholder in placeholders:
                 # Try state attribute first
-                value = getattr(state, placeholder, None)
+                value = state.get_with_wrapper(placeholder, self._context_wrappers.get(placeholder, identity_wrapper))
                 if value is not None:
                     context_dict[placeholder] = str(value)
                     continue

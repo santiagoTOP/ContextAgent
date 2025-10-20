@@ -240,6 +240,7 @@ class RuntimeTracker:
                 content,
                 border_style=border_style,
                 iteration=iteration,
+                group_id=group_id,
             )
 
     @contextmanager

@@ -7,7 +7,6 @@ Agents:
 
 Runtime Infrastructure:
 - RuntimeTracker: Manages runtime state (tracing, printing, reporting, iteration tracking, data store)
-- AgentExecutor: High-level agent execution with full pipeline infrastructure
 - AgentStep: Abstraction for a single agent execution step
 
 High-Level Patterns:
@@ -26,7 +25,7 @@ from agentz.agent.tracker import (
     get_current_tracker,
     get_current_data_store,
 )
-from agentz.agent.executor import AgentExecutor, AgentStep, PrinterConfig
+from agentz.agent.executor import AgentStep, PrinterConfig
 from agentz.agent.patterns import (
     execute_tool_plan,
     execute_tools,
@@ -37,7 +36,6 @@ __all__ = [
     "ContextAgent",
     # Runtime infrastructure
     "RuntimeTracker",
-    "AgentExecutor",
     "AgentStep",
     "PrinterConfig",
     # High-level patterns
