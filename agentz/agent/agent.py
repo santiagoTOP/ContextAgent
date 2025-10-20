@@ -187,8 +187,8 @@ class ContextAgent(Agent[TContext]):
 
         This allows usage like: result = await agent(input_data)
 
-        When called with tracker provided, uses the agent_step function for full
-        tracking/tracing. Otherwise, uses ContextRunner.
+        When called with tracker provided (or available from context), uses the agent_step
+        function for full tracking/tracing. Otherwise, uses ContextRunner.
 
         Note: When calling directly without tracker, input validation
         is relaxed to allow string inputs even if agent has a defined input_model.
@@ -196,7 +196,8 @@ class ContextAgent(Agent[TContext]):
         Args:
             payload: Input data for the agent
             group_id: Optional group ID for tracking. Must be provided explicitly when needed.
-            tracker: Optional RuntimeTracker for execution with tracking
+            tracker: Optional RuntimeTracker for execution with tracking.
+                    If not provided, will attempt to get from context via get_current_tracker().
 
         Returns:
             Parsed output if in pipeline context, otherwise RunResult
@@ -204,10 +205,15 @@ class ContextAgent(Agent[TContext]):
         # Build instructions with automatic context injection if enabled
         instructions = self.build_contextual_instructions(payload)
 
-        # If tracker is provided, use agent_step function for full tracking
+        # Auto-detect tracker from context if not explicitly provided
+        if tracker is None:
+            from agentz.agent.tracker import get_current_tracker
+            tracker = get_current_tracker()
+
+        # If tracker is available (explicitly or from context), use agent_step for full tracking
         if tracker:
             from agentz.agent.executor import agent_step
-            
+
             result = await agent_step(
                 tracker=tracker,
                 agent=self,

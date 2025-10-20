@@ -77,13 +77,13 @@ class SimplePipeline(BasePipeline):
             history=self.context.state.iteration_history(include_current=False) or "",
         )
 
-        routing_plan = await self.routing_agent(routing_input, group_id=self._current_group_id, tracker=self.runtime_tracker)
+        routing_plan = await self.routing_agent(routing_input, group_id=self._current_group_id)
         task = self._select_task(routing_plan)
 
         # Just pass the task query string directly - agent will handle it
         tool_payload = task.query
 
-        result = await self.tool_agent(tool_payload, group_id=self._current_group_id, tracker=self.runtime_tracker)
+        result = await self.tool_agent(tool_payload, group_id=self._current_group_id)
 
         if self.state:
             self.state.final_report = result.output
