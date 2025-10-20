@@ -197,8 +197,9 @@ class ContextAgent(Agent[TContext]):
 
             # Get values for each placeholder
             for placeholder in placeholders:
-                # Try state attribute first
-                value = getattr(state, placeholder, None)
+                # Get the value with the appropriate wrapper
+                # If no wrapper is registered, use the identity wrapper, which just returns the value as is
+                value = state.get_with_wrapper(placeholder, self._context_wrappers.get(placeholder, identity_wrapper))
                 if value is not None:
                     context_dict[placeholder] = str(value)
                     continue
