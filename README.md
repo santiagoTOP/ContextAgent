@@ -64,11 +64,39 @@ query = DataScienceQuery(
 pipe.run_sync(query)
 ```
 
-## Building Your Own System
+## Steps to Build Your Own System
 
+#### Step 1 - New Agent (Optional)
+
+Create new agents by writing agent profiles in `agentz/profiles`, or use built-in agents:
+
+* Observe agent - reflect on the process, update knowledge gaps
+* Evaluate agent - evaluate the current state, form up next steps
+* Routing agent - call tool agents automatically
+* Writer agent - generate the final report
+* ......
+
+#### Step 2 - Custom Pipeline
+
+Create a new pipeline in `pipelines`. Allocate agents in `__init__` and define workflow in `run`. Context management is fully automated!
+
+#### Step 3 - Execution
+
+Execute your pipeline via creating a module like
+
+```python
+from pipelines.your_pipeline import YourPipeline, YourQuery
+
+pipe = YourPipeline(...)
+
+query = DataScienceQuery(
+    prompt=...
+)
+
+pipe.run_sync(query)
 ```
-TODO
-```
+
+For more implementation details, please refer to out [Documentation](https://deepwiki.com/context-machine-lab/agentz).
 
 ## Architecture
 
@@ -123,7 +151,7 @@ AgentZ's context-central design has been validated on multiple research benchmar
 
 ## Documentation
 
-TODO
+More details are available at 📖[Documentation](https://deepwiki.com/context-machine-lab/agentz).
 
 ## Citation
 
@@ -132,7 +160,7 @@ If you use AgentZ in your research, please cite:
 ```bibtex
 @software{agentz2025,
   title={AgentZ: A Context-Central Multi-Agent Systems Framework},
-  author={Zhimeng Guo, Hangfan Zhang, Minghao Chen},
+  author={Zhimeng Guo, Hangfan Zhang, Siyuan Xu, Huaisheng Zhu, Teng Xiao, Minhao Cheng},
   year={2025},
   url={https://https://github.com/TimeLovercc/agentz}
 }
