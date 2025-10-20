@@ -4,9 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from agentz.agent.base import ContextAgent
+from agentz.agent import ContextAgent, execute_tools
 from agentz.context.context import Context
-from agentz.runner import execute_tools
 from pipelines.base import BasePipeline
 
 
@@ -43,30 +42,10 @@ class WebSearcherPipeline(BasePipeline):
         llm = self.config.llm.main_model
 
         # Create manager agents with explicit dependencies
-        self.observe_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="observe",
-            llm=llm,
-        )
-        self.evaluate_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="evaluate",
-            llm=llm,
-        )
-        self.planning_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="web_planning",
-            llm=llm,
-        )
-        self.writer_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="writer",
-            llm=llm,
-        )
+        self.observe_agent = ContextAgent(context=self.context, profile="observe", llm=llm)
+        self.evaluate_agent = ContextAgent(context=self.context, profile="evaluate", llm=llm)
+        self.planning_agent = ContextAgent(context=self.context, profile="web_planning", llm=llm)
+        self.writer_agent = ContextAgent(context=self.context, profile="writer", llm=llm)
 
         # Create tool agents as dictionary
         tool_agent_names = [
@@ -74,18 +53,9 @@ class WebSearcherPipeline(BasePipeline):
             "web_crawler",
         ]
         self.tool_agents = {
-            f"{name}_agent": ContextAgent.from_profile(
-                context=self.context,
-                config=self.config,
-                role=name,
-                llm=llm,
-            )
+            f"{name}_agent": ContextAgent(context=self.context, profile=name, llm=llm, name=f"{name}_agent")
             for name in tool_agent_names
         }
-
-        # Update all agents with tool_agents reference
-        for agent in [self.observe_agent, self.evaluate_agent, self.planning_agent, self.writer_agent]:
-            agent._tool_agents = self.tool_agents
 
     async def run(self, query: Any = None) -> Any:
         """Execute web search workflow - full implementation in one function.

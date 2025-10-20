@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 from typing import Any
-
 from pydantic import BaseModel
 
-from agentz.agent.base import ContextAgent
-from agentz.context.context import Context
-from agentz.runner import execute_tools
+from agentz.agent import ContextAgent, execute_tools
+from agentz.context import Context
 from pipelines.base import BasePipeline, autotracing
 
 
@@ -40,30 +38,10 @@ class DataScientistPipeline(BasePipeline):
         llm = self.config.llm.main_model
 
         # Create manager agents with explicit dependencies
-        self.observe_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="observe",
-            llm=llm,
-        )
-        self.evaluate_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="evaluate",
-            llm=llm,
-        )
-        self.routing_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="routing",
-            llm=llm,
-        )
-        self.writer_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="writer",
-            llm=llm,
-        )
+        self.observe_agent = ContextAgent(self.context, profile="observe", llm=llm)
+        self.evaluate_agent = ContextAgent(self.context, profile="evaluate", llm=llm)
+        self.routing_agent = ContextAgent(self.context, profile="routing", llm=llm)
+        self.writer_agent = ContextAgent(self.context, profile="writer", llm=llm)
 
         # Create tool agents as dictionary
         tool_agent_names = [
@@ -75,18 +53,10 @@ class DataScientistPipeline(BasePipeline):
             "visualization_agent",
         ]
         self.tool_agents = {
-            name: ContextAgent.from_profile(
-                context=self.context,
-                config=self.config,
-                role=name.removesuffix("_agent"),
-                llm=llm,
-            )
+            name: ContextAgent(self.context, profile=name.removesuffix("_agent"), llm=llm, name=name)
             for name in tool_agent_names
         }
 
-        # Update all agents with tool_agents reference
-        for agent in [self.observe_agent, self.evaluate_agent, self.routing_agent, self.writer_agent]:
-            agent._tool_agents = self.tool_agents
 
     @autotracing()
     async def run(self, query: DataScienceQuery) -> Any:

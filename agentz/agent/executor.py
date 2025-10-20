@@ -6,11 +6,11 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Optional, Union
 
-from agentz.runner.base import ContextRunner as Runner
+from agents import Runner
 from agents.tracing.create import agent_span, function_span
 from pydantic import BaseModel
 
-from agentz.runner.tracker import RuntimeTracker
+from agentz.agent.tracker import RuntimeTracker
 
 
 @dataclass
@@ -161,6 +161,11 @@ async def agent_step(
                     result = Runner.run_sync(agent, instructions, context=tracker.data_store)
                 else:
                     result = await Runner.run(agent, instructions, context=tracker.data_store)
+
+                # Handle ContextAgent parse_output (for legacy string parsers)
+                from agentz.agent.agent import ContextAgent
+                if isinstance(agent, ContextAgent):
+                    result = await agent.parse_output(result)
 
             raw_output = getattr(result, "final_output", result)
 

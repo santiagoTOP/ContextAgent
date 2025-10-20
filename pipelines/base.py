@@ -9,7 +9,7 @@ from loguru import logger
 from rich.console import Console
 
 from agentz.utils.config import BaseConfig, resolve_config
-from agentz.runner import (
+from agentz.agent import (
     AgentExecutor,
     RuntimeTracker,
 )

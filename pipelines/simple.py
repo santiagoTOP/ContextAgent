@@ -5,7 +5,7 @@ from typing import Any
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from agentz.agent.base import ContextAgent
+from agentz.agent import ContextAgent
 from agentz.context.context import Context
 from agentz.profiles.manager.routing import AgentSelectionPlan, AgentTask
 from pipelines.base import BasePipeline
@@ -38,18 +38,8 @@ class SimplePipeline(BasePipeline):
         llm = self.config.llm.main_model
 
         # Bind agents from registered profiles with explicit dependencies
-        self.routing_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="routing",
-            llm=llm,
-        )
-        self.tool_agent = ContextAgent.from_profile(
-            context=self.context,
-            config=self.config,
-            role="web_searcher",
-            llm=llm,
-        )
+        self.routing_agent = ContextAgent(context=self.context, profile="routing", llm=llm)
+        self.tool_agent = ContextAgent(context=self.context, profile="web_searcher", llm=llm)
 
     async def run(self, query: Any = None) -> Any:
         """Route the query once and execute the web searcher agent.
