@@ -8,12 +8,12 @@ from typing import Any, Callable, Dict, Mapping, Optional, Union
 from loguru import logger
 from rich.console import Console
 
-from agentz.utils.config import BaseConfig, resolve_config
-from agentz.agent import (
+from contextagent.utils.config import BaseConfig, resolve_config
+from contextagent.agent import (
     RuntimeTracker,
 )
-from agentz.artifacts import RunReporter
-from agentz.utils import Printer, get_experiment_timestamp
+from contextagent.artifacts import RunReporter
+from contextagent.utils import Printer, get_experiment_timestamp
 
 
 class BasePipeline:
