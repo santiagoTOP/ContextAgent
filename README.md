@@ -64,6 +64,16 @@ query = DataScienceQuery(
 pipe.run_sync(query)
 ```
 
+### Web UI (Pipeline Manager)
+
+Run the lightweight Flask web UI to submit and monitor pipelines with live logs:
+
+```bash
+uv run python frontend/app.py --host localhost --port 9090 --debug
+```
+
+Then open `http://localhost:9090` in your browser. The UI streams live status and panels from the running pipeline and lets you stop active runs.
+
 ## Steps to Build Your Own System
 
 #### Step 1 - New Agent (Optional)

@@ -21,8 +21,14 @@ from pipelines.simple import SimplePipeline
 from pipelines.data_scientist import DataScientistPipeline
 from pipelines.web_researcher import WebSearcherPipeline
 from pipelines.vanilla_chat import VanillaChatPipeline
+from pathlib import Path
+from dotenv import load_dotenv
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+
+# Ensure environment variables from project root are loaded for provider/tool configs
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(PROJECT_ROOT / ".env")
 
 
 @dataclass
@@ -50,84 +56,110 @@ class PipelineField:
         }
 
 
-AVAILABLE_PIPELINES: Dict[str, Dict[str, Any]] = {
-    "vanilla_chat": {
-        "name": "Vanilla Chat",
-        "description": "Single-turn conversational agent using the vanilla chat profile.",
-        "class": VanillaChatPipeline,
-        "config": "pipelines/configs/vanilla_chat.yaml",
-        "primary_input": "prompt",
-        "fields": [
-            PipelineField(
-                id="prompt",
-                label="Prompt",
-                field_type="textarea",
-                placeholder="Ask a question to the vanilla chat agent...",
-                default="Hello! How are you?",
-                config_key="data.prompt",
-            ),
-        ],
-    },
-    "simple": {
-        "name": "Simple Web Search",
-        "description": "Routes the request through a web search agent for quick answers.",
-        "class": SimplePipeline,
-        "config": "pipelines/configs/simple.yaml",
-        "primary_input": "prompt",
-        "fields": [
-            PipelineField(
-                id="prompt",
-                label="Search or Task Prompt",
-                field_type="textarea",
-                placeholder="Describe the task or information you want to find...",
-                default="Find the outstanding papers of ACL 2025 and summarize key details.",
-                config_key="data.prompt",
-            ),
-        ],
-    },
-    "data_scientist": {
-        "name": "Data Scientist",
-        "description": "Iterative data science workflow with multiple specialized agents.",
-        "class": DataScientistPipeline,
-        "config": "pipelines/configs/data_science.yaml",
-        "primary_input": "prompt",
-        "fields": [
-            PipelineField(
-                id="prompt",
-                label="Analysis Objective",
-                field_type="textarea",
-                placeholder="Describe the analysis you want to perform...",
-                default="Analyze banana_quality.csv and report the key quality indicators.",
-                config_key="data.prompt",
-            ),
-            PipelineField(
-                id="data_path",
-                label="Dataset Path",
-                field_type="text",
-                placeholder="Path to the dataset file (e.g. data/banana_quality.csv)",
-                default="data/banana_quality.csv",
-                config_key="data.path",
-            ),
-        ],
-    },
-    "web_searcher": {
-        "name": "Web Researcher",
-        "description": "Research workflow that combines search, synthesis, and reporting.",
-        "class": WebSearcherPipeline,
-        "config": "pipelines/configs/web_searcher.yaml",
-        "primary_input": "prompt",
-        "fields": [
-            PipelineField(
-                id="prompt",
-                label="Research Prompt",
-                field_type="textarea",
-                placeholder="What topic would you like the research agent to investigate?",
-                default="Find the outstanding papers of ACL 2025 and summarize their contributions.",
-                config_key="data.prompt",
-            ),
-        ],
-    },
-}
+def discover_example_pipelines() -> Dict[str, Dict[str, Any]]:
+    """Discover available pipelines based on presence of example scripts.
+
+    Only includes pipelines that have a corresponding script in `examples/`.
+    GUI stays the same; this only affects which entries are returned by the API.
+    """
+    root_dir = Path(__file__).resolve().parent.parent
+    examples_dir = root_dir / "examples"
+
+    pipelines: Dict[str, Dict[str, Any]] = {}
+
+    # Data Scientist
+    if (examples_dir / "data_science.py").exists():
+        pipelines["data_scientist"] = {
+            "name": "Data Scientist",
+            "description": "Iterative data science workflow with multiple specialized agents.",
+            "class": DataScientistPipeline,
+            "config": "pipelines/configs/data_science.yaml",
+            "primary_input": "prompt",
+            "fields": [
+                PipelineField(
+                    id="prompt",
+                    label="Analysis Objective",
+                    field_type="textarea",
+                    placeholder="Describe the analysis you want to perform...",
+                    default="Analyze banana_quality.csv and report the key quality indicators.",
+                    config_key="data.prompt",
+                ),
+                PipelineField(
+                    id="data_path",
+                    label="Dataset Path",
+                    field_type="text",
+                    placeholder="Path to the dataset file (e.g. data/banana_quality.csv)",
+                    default="data/banana_quality.csv",
+                    config_key="data.path",
+                ),
+            ],
+        }
+
+    # Web Researcher
+    if (examples_dir / "web_researcher.py").exists():
+        pipelines["web_searcher"] = {
+            "name": "Web Researcher",
+            "description": "Research workflow that combines search, synthesis, and reporting.",
+            "class": WebSearcherPipeline,
+            "config": "pipelines/configs/web_searcher.yaml",
+            "primary_input": "prompt",
+            "fields": [
+                PipelineField(
+                    id="prompt",
+                    label="Research Prompt",
+                    field_type="textarea",
+                    placeholder="What topic would you like the research agent to investigate?",
+                    default="Find the outstanding papers of ACL 2025 and summarize their contributions.",
+                    config_key="data.prompt",
+                ),
+            ],
+        }
+
+    # Simple Web Search
+    if (examples_dir / "simple.py").exists():
+        pipelines["simple"] = {
+            "name": "Simple Web Search",
+            "description": "Routes the request through a web search agent for quick answers.",
+            "class": SimplePipeline,
+            "config": "pipelines/configs/simple.yaml",
+            "primary_input": "prompt",
+            "fields": [
+                PipelineField(
+                    id="prompt",
+                    label="Search or Task Prompt",
+                    field_type="textarea",
+                    placeholder="Describe the task or information you want to find...",
+                    default="Find the outstanding papers of ACL 2025 and summarize key details.",
+                    config_key="data.prompt",
+                ),
+            ],
+        }
+
+    # Optional: include vanilla_chat only if an example exists
+    if (examples_dir / "vanilla_chat.py").exists():
+        pipelines["vanilla_chat"] = {
+            "name": "Vanilla Chat",
+            "description": "Single-turn conversational agent using the vanilla chat profile.",
+            "class": VanillaChatPipeline,
+            "config": "pipelines/configs/vanilla_chat.yaml",
+            "primary_input": "prompt",
+            "fields": [
+                PipelineField(
+                    id="prompt",
+                    label="Prompt",
+                    field_type="textarea",
+                    placeholder="Ask a question to the vanilla chat agent...",
+                    default="Hello! How are you?",
+                    config_key="data.prompt",
+                ),
+            ],
+        }
+
+    return pipelines
+
+
+# Build available pipelines list from examples
+AVAILABLE_PIPELINES: Dict[str, Dict[str, Any]] = discover_example_pipelines()
 
 
 def generate_run_id() -> str:
@@ -181,7 +213,14 @@ def run_pipeline_thread(run_id: str) -> None:
         return
 
     try:
-        config_payload = {"config_path": pipeline_def["config"]}
+        # Resolve config_path to an absolute path so running from frontend/ works
+        raw_config = pipeline_def["config"]
+        cfg_path = Path(raw_config)
+        if not cfg_path.is_absolute():
+            repo_root = Path(__file__).resolve().parent.parent
+            cfg_path = (repo_root / cfg_path).resolve()
+
+        config_payload = {"config_path": str(cfg_path)}
 
         # Apply dynamic field values
         for field in pipeline_def.get("fields", []):
@@ -194,25 +233,60 @@ def run_pipeline_thread(run_id: str) -> None:
                 apply_config_value(config_payload, field.config_key, value)
 
         pipeline_instance = pipeline_class(config_payload)
-        pipeline_instance._printer = printer
+        # Integrate StreamingPrinter with the pipeline's runtime tracker
+        # so that all update_printer()/group/panel events stream to the UI.
+        try:
+            pipeline_instance.runtime_tracker._printer = printer  # type: ignore[attr-defined]
+        except Exception:
+            # Fallback for legacy attribute
+            setattr(pipeline_instance, "_printer", printer)
 
         run_entry["pipeline_instance"] = pipeline_instance
         run_entry["status"] = "running"
         run_entry["started_at"] = time.time()
 
-        # Determine primary input fed to run_sync
+        # Determine primary input and construct typed query objects when needed
         primary_key = pipeline_def.get("primary_input")
-        query_input = None
-        if primary_key:
-            query_input = run_entry["inputs"].get(primary_key)
-        if query_input in ("", None):
-            # Fall back to first non-empty input, then None
+        raw_primary = run_entry["inputs"].get(primary_key) if primary_key else None
+        if raw_primary in ("", None):
             for value in run_entry["inputs"].values():
                 if value not in ("", None):
-                    query_input = value
+                    raw_primary = value
                     break
 
-        result = pipeline_instance.run_sync(query_input)
+        query_input = raw_primary
+
+        # Align with example scripts by building typed query payloads
+        try:
+            if run_entry["pipeline_id"] == "data_scientist":
+                from pipelines.data_scientist import DataScienceQuery
+
+                prompt_val = run_entry["inputs"].get("prompt") or ""
+                data_path_val = run_entry["inputs"].get("data_path") or ""
+                if prompt_val or data_path_val:
+                    query_input = DataScienceQuery(prompt=prompt_val, data_path=data_path_val)
+            elif run_entry["pipeline_id"] == "web_searcher":
+                from pipelines.web_researcher import WebSearchQuery
+
+                prompt_val = run_entry["inputs"].get("prompt") or (raw_primary or "")
+                query_input = WebSearchQuery(prompt=prompt_val)
+            elif run_entry["pipeline_id"] == "vanilla_chat":
+                # Optional: prefer ChatQuery if present, otherwise pass string
+                try:
+                    from pipelines.vanilla_chat import ChatQuery
+
+                    prompt_val = run_entry["inputs"].get("prompt") or (raw_primary or "")
+                    query_input = ChatQuery(message=prompt_val)
+                except Exception:
+                    pass
+        except Exception:
+            # Fall back silently to raw_primary if typed construction fails
+            query_input = raw_primary
+
+        # Ensure ContextAgents can access the tracker for proper logging/tracing
+        # even for pipelines that don't use the autotracing decorator.
+        with pipeline_instance.runtime_tracker.activate():
+            result = pipeline_instance.run_sync(query_input)
 
         if stop_flag.is_set():
             run_entry["status"] = "cancelled"
