@@ -69,6 +69,11 @@ class ContextAgent(Agent[TContext]):
             "model": llm,
         }
 
+        # Pass through MCP servers if defined on the profile (enables MCP tools)
+        mcp_servers = getattr(resolved_profile, "mcp_servers", None)
+        if mcp_servers:
+            base_agent_kwargs["mcp_servers"] = mcp_servers
+
         # Handle output schema and parser
         output_parser = None
         output_schema = getattr(resolved_profile, "output_schema", None)
@@ -268,19 +273,41 @@ class ContextAgent(Agent[TContext]):
 
             resolved_record_payload = record_payload if record_payload is not None else is_tool_agent
 
-            result = await agent_step(
-                tracker=tracker,
-                agent=self,
-                instructions=instructions,
-                span_name=resolved_span_name,
-                span_type=resolved_span_type,
-                output_model=resolved_output_model,
-                sync=sync,
-                printer_key=resolved_printer_key,
-                printer_title=resolved_printer_title,
-                printer_border_style=printer_border_style,
-                **span_kwargs,
-            )
+            # Ensure MCP servers are connected for this call, and cleaned up after
+            connected_servers = []
+            try:
+                mcp_servers = getattr(self, "mcp_servers", None)
+                if mcp_servers:
+                    for server in mcp_servers:
+                        # Connect only if the server exposes connect() and is not already connected
+                        connect = getattr(server, "connect", None)
+                        session = getattr(server, "session", None)
+                        if callable(connect) and session is None:
+                            await connect()
+                            connected_servers.append(server)
+
+                result = await agent_step(
+                    tracker=tracker,
+                    agent=self,
+                    instructions=instructions,
+                    span_name=resolved_span_name,
+                    span_type=resolved_span_type,
+                    output_model=resolved_output_model,
+                    sync=sync,
+                    printer_key=resolved_printer_key,
+                    printer_title=resolved_printer_title,
+                    printer_border_style=printer_border_style,
+                    **span_kwargs,
+                )
+            finally:
+                # Cleanup only the servers we connected here
+                for server in connected_servers:
+                    cleanup = getattr(server, "cleanup", None)
+                    if callable(cleanup):
+                        try:
+                            await cleanup()
+                        except Exception:
+                            pass
             # if self.name == "web_searcher_agent":
             #     import ipdb; ipdb.set_trace()
 

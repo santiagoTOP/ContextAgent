@@ -42,7 +42,7 @@ def _escape_unescaped_quotes(json_text: str) -> str:
                 lookahead = index + 1
                 while lookahead < len(json_text) and json_text[lookahead] in " \t\r\n":
                     lookahead += 1
-                if lookahead < len(json_text) and json_text[lookahead] not in ",}]":
+                if lookahead < len(json_text) and json_text[lookahead] not in ",:}]":
                     result.append('\\"')
                 else:
                     result.append('"')

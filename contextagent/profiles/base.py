@@ -15,6 +15,7 @@ class Profile(BaseModel):
     model: Optional[str] = Field(default=None, description="Model override for this profile (e.g., 'gpt-4', 'claude-3-5-sonnet')")
     output_schema: Optional[Type[BaseModel]] = Field(default=None, description="Pydantic model class for structured output validation")
     tools: Optional[List[Any]] = Field(default=None, description="List of tool objects (e.g., FunctionTool instances) to use for this profile")
+    mcp_servers: Optional[List[Any]] = Field(default=None, description="List of MCP server specs (e.g., MCPServerStdio instances) for MCP tool integration")
     description: Optional[str] = Field(default=None, description="Optional one-sentence description for agent capabilities (auto-extracted from instructions if not provided)")
 
     class Config:
@@ -106,5 +107,4 @@ def load_all_profiles():
             raise e
 
     return profiles
-
 
