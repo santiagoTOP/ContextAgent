@@ -207,66 +207,34 @@ See complete implementations in:
 
 ## 🏗️ Architecture
 
-ContextAgent is organized around a **central conversation state** and a profile-driven agent system.
-All agents are coordinated through a unified `Context` that manages iteration state and shared
-information. The main components you will interact with are:
+ContextAgent is organized around a **central conversation state** and a profile-driven agent system. All agents are coordinated through a unified `Context` that manages iteration state and shared information.
 
-- **`pipelines/`** – High-level orchestration with `BasePipeline` for workflow management and configuration loading.
-- **`contextagent/agent/`** – `ContextAgent` class extending the agents framework with context awareness, plus runtime tracking and execution utilities.
-- **`contextagent/context/`** – Central conversation state management (`ConversationState`, iteration tracking, context coordination).
-- **`contextagent/profiles/`** – Profile definitions organized by domain (manager, data, web, debug, code, mcp) that define agent capabilities and behavior.
-- **`contextagent/tools/`** – Tool implementations for data processing, web operations, and code execution.
-- **`contextagent/artifacts/`** – Output generation and result formatting (artifact writing, reporting, terminal output).
-- **`contextagent/llm/`** – LLM provider adapters and model configuration.
-- **`contextagent/mcp/`** – Model Context Protocol integration for extended agent capabilities.
-- **`contextagent/utils/`** – Utilities for configuration, parsing, and helper functions.
-- **`examples/`** – Example scripts showing end-to-end usage.
-- **`frontend/`** – Web UI for system interaction and monitoring.
+### Core Components:
+
+- **`pipelines/`** – Workflow orchestration and configuration management
+- **`contextagent/agent/`** – ContextAgent implementation with context awareness and execution tracking
+- **`contextagent/context/`** – Centralized conversation state and coordination
+- **`contextagent/profiles/`** – Agent profiles defining capabilities (manager, data, web, code, etc.)
+- **`contextagent/tools/`** – Tool implementations for data processing, web operations, and code execution
+- **`examples/`** – Example pipelines demonstrating usage
+- **`frontend/`** – Web UI for pipeline management and monitoring
+
+### Project Structure:
 
 ```
 contextagent/
-├── pipelines/
-│   ├── base.py               # BasePipeline with config management & helpers
-│   ├── configs/              # YAML configuration files for pipelines
-│   ├── data_scientist.py     # Data science pipeline implementation
-│   └── web_researcher.py     # Web research pipeline implementation
+├── pipelines/          # Workflow orchestration
 ├── contextagent/
-│   ├── agent/
-│   │   ├── agent.py          # ContextAgent class with context injection
-│   │   ├── tracker.py        # RuntimeTracker for execution monitoring
-│   │   └── executor.py       # Execution utilities
-│   ├── context/
-│   │   ├── context.py        # Context coordinator
-│   │   ├── conversation.py   # ConversationState and iteration management
-│   │   └── data_store.py     # Persistent data storage
-│   ├── profiles/
-│   │   ├── base.py           # Profile base class and loader
-│   │   ├── manager/          # Manager profiles (observe, routing, evaluate, writer)
-│   │   ├── data/             # Data processing profiles
-│   │   ├── web/              # Web research profiles
-│   │   ├── code/             # Code execution profiles
-│   │   ├── debug/            # Debug profiles
-│   │   └── mcp/              # MCP-based profiles
-│   ├── tools/
-│   │   ├── data_tools/       # Data analysis and preprocessing
-│   │   ├── web_tools/        # Web searching and crawling
-│   │   └── code_tools/       # Code execution tools
-│   ├── artifacts/
-│   │   ├── artifact_writer.py # Output artifact generation
-│   │   ├── reporter.py       # Result reporting
-│   │   └── terminal_writer.py # Terminal output formatting
-│   ├── llm/                  # LLM provider adapters
-│   ├── mcp/                  # MCP manager and server integration
-│   └── utils/                # Config, parsers, helpers, printer
-├── examples/
-│   ├── data_science.py       # Data science example
-│   └── web_researcher.py     # Web research example
-└── frontend/
-    ├── app.py                # Web UI application
-    ├── streaming_printer.py   # Real-time output streaming
-    ├── static/               # Static assets
-    └── templates/            # HTML templates
+│   ├── agent/          # ContextAgent implementation
+│   ├── context/        # Conversation state management
+│   ├── profiles/       # Agent profiles (manager, data, web, code)
+│   ├── tools/          # Tool implementations
+│   └── artifacts/      # Output formatting
+├── examples/           # Example pipelines
+└── frontend/           # Web UI
 ```
+
+For more details, see the [full documentation](https://deepwiki.com/context-machine-lab/contextagent).
 
 
 ## 📊 Benchmarks
