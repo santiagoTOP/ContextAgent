@@ -8,6 +8,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+import markdown
+from pygments import highlight
+from pygments.formatters import HtmlFormatter
+from pygments.lexers import JsonLexer, PythonLexer, get_lexer_by_name
+
 if TYPE_CHECKING:
     from agentz.artifacts.reporter import AgentStepRecord, PanelRecord
 
@@ -24,6 +29,31 @@ def _json_default(obj: Any) -> Any:
     if hasattr(obj, "__dict__"):
         return obj.__dict__
     return str(obj)
+
+
+def _markdown_to_html(text: str) -> str:
+    """Convert markdown text to HTML with syntax highlighting."""
+    extensions = [
+        "fenced_code",
+        "tables",
+        "nl2br",
+        "sane_lists",
+    ]
+    html = markdown.markdown(text, extensions=extensions)
+    return html
+
+
+def _highlight_json(json_str: str) -> str:
+    """Apply syntax highlighting to JSON string."""
+    formatter = HtmlFormatter(style="friendly", noclasses=False)
+    highlighted = highlight(json_str, JsonLexer(), formatter)
+    return highlighted
+
+
+def _get_pygments_css() -> str:
+    """Get CSS for Pygments syntax highlighting."""
+    formatter = HtmlFormatter(style="friendly", noclasses=False)
+    return ""
 
 
 class ArtifactWriter:
@@ -359,33 +389,36 @@ class ArtifactWriter:
         duration: float,
         sections: List[Dict[str, Any]],
     ) -> str:
-        """Render the terminal log as standalone HTML."""
+        """Render the terminal log as standalone HTML with proper markdown rendering."""
         body_sections: List[str] = []
 
         for section in sections:
             panels_html: List[str] = []
             for panel in section.get("panels", []):
+                # Convert markdown to HTML
+                content_html = _markdown_to_html(panel.content)
                 panel_html = f"""
         <article class="panel">
           <h3>{panel.title or "Panel"}</h3>
-          <pre>{panel.content}</pre>
+          <div class="panel-content">
+            {content_html}
+          </div>
         </article>
         """.strip()
                 panels_html.append(panel_html)
 
             agent_html: List[str] = []
             for step in section.get("agent_steps", []):
-                info = json.dumps(
-                    {
-                        "agent": step.agent_name,
-                        "span": step.span_name,
-                        "status": step.status,
-                        "duration_seconds": step.duration_seconds,
-                        "error": step.error,
-                    },
-                    default=_json_default,
-                )
-                agent_html.append(f'<li><code>{info}</code></li>')
+                info_dict = {
+                    "agent": step.agent_name,
+                    "span": step.span_name,
+                    "status": step.status,
+                    "duration_seconds": step.duration_seconds,
+                    "error": step.error,
+                }
+                info_json = json.dumps(info_dict, default=_json_default, indent=2)
+                highlighted_json = _highlight_json(info_json)
+                agent_html.append(f'<li class="agent-step">{highlighted_json}</li>')
 
             timeframe = ""
             if section.get("started_at") or section.get("finished_at"):
@@ -417,68 +450,240 @@ class ArtifactWriter:
 <head>
   <meta charset="utf-8" />
   <title>Terminal Log · {self.workflow_name}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    body {{
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    * {{
       margin: 0;
-      padding: 24px;
-      background: #0f172a;
-      color: #e2e8f0;
+      padding: 0;
+      box-sizing: border-box;
     }}
-    h1 {{
-      margin-top: 0;
-    }}
-    .meta {{
-      margin-bottom: 24px;
+
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       line-height: 1.6;
+      color: #24292e;
+      background: #fff;
+      padding: 20px;
     }}
+
+    .container {{
+      max-width: 900px;
+      margin: 0 auto;
+    }}
+
+    header {{
+      margin-bottom: 32px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e1e4e8;
+    }}
+
+    h1 {{
+      font-size: 2em;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }}
+
+    .meta {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      font-size: 0.9em;
+      color: #586069;
+    }}
+
+    .meta div {{
+      display: flex;
+      gap: 8px;
+    }}
+
+    .meta strong {{
+      color: #24292e;
+    }}
+
+    main {{
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }}
+
     .section {{
-      border: 1px solid rgba(148, 163, 184, 0.3);
-      border-radius: 12px;
-      padding: 16px 20px;
-      margin-bottom: 18px;
-      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
+      padding: 16px;
+      background: #f6f8fa;
     }}
+
     .section h2 {{
-      margin-top: 0;
+      font-size: 1.5em;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #24292e;
     }}
+
     .section .time {{
-      color: #60a5fa;
-      font-size: 0.9rem;
-      margin-top: -8px;
+      color: #6f42c1;
+      font-size: 0.85em;
+      margin-bottom: 12px;
+      font-weight: 500;
     }}
-    pre {{
-      background: rgba(15, 23, 42, 0.85);
-      border-radius: 10px;
-      padding: 12px;
-      overflow-x: auto;
-      border: 1px solid rgba(148, 163, 184, 0.2);
-      white-space: pre-wrap;
-      word-wrap: break-word;
-    }}
-    ul.agents {{
+
+    .agents {{
       list-style: none;
-      padding-left: 0;
-      margin: 0 0 16px 0;
+      margin-bottom: 16px;
     }}
-    ul.agents li {{
+
+    .agent-step {{
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      background: white;
+      border-left: 3px solid #6f42c1;
+      border-radius: 4px;
+    }}
+
+    .agent-step pre {{
+      margin: 0;
+      overflow-x: auto;
+      font-size: 0.9em;
+    }}
+
+    .panel {{
+      margin-top: 12px;
+      padding: 12px;
+      background: white;
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
+    }}
+
+    .panel h3 {{
+      font-size: 1.1em;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #24292e;
+    }}
+
+    .panel-content {{
+      font-size: 0.95em;
+    }}
+
+    .panel-content h1 {{
+      font-size: 1.8em;
+      margin-top: 24px;
+      margin-bottom: 12px;
+    }}
+
+    .panel-content h2 {{
+      font-size: 1.5em;
+      margin-top: 20px;
+      margin-bottom: 10px;
+    }}
+
+    .panel-content h3 {{
+      font-size: 1.2em;
+      margin-top: 16px;
+      margin-bottom: 8px;
+    }}
+
+    .panel-content h4, .panel-content h5, .panel-content h6 {{
+      margin-top: 12px;
       margin-bottom: 6px;
     }}
+
+    .panel-content p {{
+      margin-bottom: 12px;
+    }}
+
+    .panel-content ul, .panel-content ol {{
+      margin-left: 24px;
+      margin-bottom: 12px;
+    }}
+
+    .panel-content li {{
+      margin-bottom: 6px;
+    }}
+
+    .panel-content code {{
+      background: #f6f8fa;
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.9em;
+      color: #24292e;
+    }}
+
+    .panel-content pre {{
+      background: #f6f8fa;
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
+      padding: 12px;
+      overflow-x: auto;
+      margin-bottom: 12px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.85em;
+    }}
+
+    .panel-content pre code {{
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }}
+
+    .panel-content blockquote {{
+      border-left: 4px solid #dfe2e5;
+      padding: 0 12px;
+      margin: 0 0 12px 0;
+      color: #6a737d;
+    }}
+
+    .panel-content table {{
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 12px;
+    }}
+
+    .panel-content table th, .panel-content table td {{
+      border: 1px solid #dfe2e5;
+      padding: 8px 12px;
+      text-align: left;
+    }}
+
+    .panel-content table th {{
+      background: #f6f8fa;
+      font-weight: 600;
+    }}
+
+    .panel-content strong {{
+      font-weight: 600;
+      color: #24292e;
+    }}
+
+    .panel-content em {{
+      font-style: italic;
+    }}
+
+    /* Pygments syntax highlighting */
+    .c {{ color: #6a737d; }}
+    .err {{ color: #d73a49; }}
+    .k {{ color: #d73a49; }}
+    .n {{ color: #24292e; }}
+    .s {{ color: #032f62; }}
+    .o {{ color: #d73a49; }}
   </style>
 </head>
 <body>
-  <header>
-    <h1>Terminal Log · {self.workflow_name}</h1>
-    <div class="meta">
-      <div><strong>Experiment ID:</strong> {self.experiment_id}</div>
-      <div><strong>Started:</strong> {self._started_at_iso or "–"}</div>
-      <div><strong>Finished:</strong> {self._finished_at_iso or "–"}</div>
-      <div><strong>Duration:</strong> {duration} seconds</div>
-    </div>
-  </header>
-  <main>
-    {sections_html}
-  </main>
+  <div class="container">
+    <header>
+      <h1>Terminal Log · {self.workflow_name}</h1>
+      <div class="meta">
+        <div><strong>Experiment ID:</strong> {self.experiment_id}</div>
+        <div><strong>Started:</strong> {self._started_at_iso or "–"}</div>
+        <div><strong>Finished:</strong> {self._finished_at_iso or "–"}</div>
+        <div><strong>Duration:</strong> {duration} seconds</div>
+      </div>
+    </header>
+    <main>
+      {sections_html}
+    </main>
+  </div>
 </body>
 </html>
 """
@@ -494,37 +699,164 @@ class ArtifactWriter:
 
         markdown_content = f"# Final Report · {self.workflow_name}\n\n{body_md}\n"
 
-        body_pre = body_md.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        # Convert markdown to HTML
+        body_html = _markdown_to_html(body_md)
+
         html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>Final Report · {self.workflow_name}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    body {{
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    * {{
       margin: 0;
-      padding: 24px;
-      background: #111827;
-      color: #f9fafb;
+      padding: 0;
+      box-sizing: border-box;
     }}
+
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6;
+      color: #24292e;
+      background: #fff;
+      padding: 20px;
+    }}
+
+    .container {{
+      max-width: 900px;
+      margin: 0 auto;
+    }}
+
+    header {{
+      margin-bottom: 32px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e1e4e8;
+    }}
+
     h1 {{
-      margin-top: 0;
+      font-size: 2em;
+      font-weight: 600;
+      margin-bottom: 12px;
     }}
-    pre {{
-      background: #1f2937;
-      border-radius: 10px;
+
+    .content {{
+      background: white;
+      padding: 20px;
+    }}
+
+    .content h1 {{
+      font-size: 2em;
+      font-weight: 600;
+      margin-top: 24px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e1e4e8;
+    }}
+
+    .content h2 {{
+      font-size: 1.5em;
+      font-weight: 600;
+      margin-top: 24px;
+      margin-bottom: 12px;
+    }}
+
+    .content h3 {{
+      font-size: 1.25em;
+      font-weight: 600;
+      margin-top: 16px;
+      margin-bottom: 10px;
+    }}
+
+    .content h4, .content h5, .content h6 {{
+      font-weight: 600;
+      margin-top: 12px;
+      margin-bottom: 8px;
+    }}
+
+    .content p {{
+      margin-bottom: 12px;
+    }}
+
+    .content ul, .content ol {{
+      margin-left: 24px;
+      margin-bottom: 12px;
+    }}
+
+    .content li {{
+      margin-bottom: 6px;
+    }}
+
+    .content code {{
+      background: #f6f8fa;
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.9em;
+      color: #24292e;
+    }}
+
+    .content pre {{
+      background: #f6f8fa;
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
       padding: 16px;
       overflow-x: auto;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      border: 1px solid rgba(148, 163, 184, 0.3);
+      margin-bottom: 12px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.85em;
+      line-height: 1.45;
+    }}
+
+    .content pre code {{
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }}
+
+    .content blockquote {{
+      border-left: 4px solid #dfe2e5;
+      padding: 0 12px;
+      margin: 0 0 12px 0;
+      color: #6a737d;
+    }}
+
+    .content table {{
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 12px;
+    }}
+
+    .content table th, .content table td {{
+      border: 1px solid #dfe2e5;
+      padding: 8px 12px;
+      text-align: left;
+    }}
+
+    .content table th {{
+      background: #f6f8fa;
+      font-weight: 600;
+    }}
+
+    .content strong {{
+      font-weight: 600;
+      color: #24292e;
+    }}
+
+    .content em {{
+      font-style: italic;
     }}
   </style>
 </head>
 <body>
-  <h1>Final Report · {self.workflow_name}</h1>
-  <pre>{body_pre}</pre>
+  <div class="container">
+    <header>
+      <h1>Final Report · {self.workflow_name}</h1>
+    </header>
+    <div class="content">
+      {body_html}
+    </div>
+  </div>
 </body>
 </html>
 """
