@@ -27,7 +27,7 @@ ContextAgent is a lightweight, context-central multi-agent systems framework des
 
 
 ## 📢 News
-- **[2025-10]** ContextAgent is released now!
+- **[2025-10]** ContextAgent v0.1.1 is released now!
 
 
 ## 🎬 Demo
