@@ -1,9 +1,9 @@
 site_name: ContextAgent
 site_description: Context-central multi-agent framework for LLM orchestration.
 site_author: Context Machine Lab
-site_url: https://context-machine-lab.github.io/contextagent
-repo_url: https://github.com/context-machine-lab/contextagent
-repo_name: context-machine-lab/contextagent
+site_url: https://context-machine-lab.github.io/ContextAgent/
+repo_url: https://github.com/context-machine-lab/ContextAgent
+repo_name: context-machine-lab/ContextAgent
 
 theme:
   name: material
