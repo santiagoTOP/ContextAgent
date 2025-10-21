@@ -4,8 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from agentz.agent import ContextAgent
-from agentz.context import Context
+from contextagent.agent import ContextAgent
+from contextagent.context import Context
 from pipelines.base import BasePipeline, autotracing
 
 

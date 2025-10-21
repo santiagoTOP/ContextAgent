@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 
 from rich.console import Console
 
-from agentz.utils.printer import Printer
+from contextagent.utils.printer import Printer
 
 
 class StreamingPrinter(Printer):

@@ -272,7 +272,7 @@ def run_pipeline_thread(run_id: str) -> None:
             thread_local.run_id = run_id
 
             from pipelines import base as base_mod
-            from agentz.agent import tracker as tracker_mod
+            from contextagent.agent import tracker as tracker_mod
 
             orig_init = base_mod.BasePipeline.__init__
             orig_run_sync = base_mod.BasePipeline.run_sync

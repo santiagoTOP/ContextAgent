@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "zero-agent"
+name = "contextagent"
 version = "0.1.0"
-description = "A Research-Oriented Multi-Agent System Platform"
+description = "A Context-Central Multi-Agent System Platform"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -47,11 +47,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/TimeLovercc/agentz"
-Repository = "https://github.com/TimeLovercc/agentz"
-Documentation = "https://github.com/TimeLovercc/agentz#readme"
-"Bug Tracker" = "https://github.com/TimeLovercc/agentz/issues"
+Homepage = "https://github.com/TimeLovercc/contextagent"
+Repository = "https://github.com/TimeLovercc/contextagent"
+Documentation = "https://github.com/TimeLovercc/contextagent#readme"
+"Bug Tracker" = "https://github.com/TimeLovercc/contextagent/issues"
 
 [tool.setuptools.packages.find]
-include = ["agentz*", "pipelines*"]
+include = ["contextagent*", "pipelines*"]
 exclude = ["examples*", "data*", "outputs*", "experience*"]
