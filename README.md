@@ -2,10 +2,10 @@
 
 # ContextAgent
 
-**A Context-Central Multi-Agent System Platform**
+**A Context-Central Multi-Agent Framework**
 
 [![Notion Blog](https://img.shields.io/badge/Notion_Blog-000000?style=for-the-badge&logo=notion&logoColor=white)](https://www.notion.so/zhimengg/Agent-Z-27f111ca2fa080a28de4d76c49f0b08d?source=copy_link)
-[![Documentation](https://img.shields.io/badge/Documentation-007ACC?style=for-the-badge&logo=markdown&logoColor=white)](YOUR_DOCS_LINK_HERE)
+[![Documentation](https://img.shields.io/badge/Documentation-007ACC?style=for-the-badge&logo=markdown&logoColor=white)](https://context-machine-lab.github.io/ContextAgent/)
 [![DeepWiki](https://img.shields.io/badge/DeepWiki-582C83?style=for-the-badge&logo=wikipedia&logoColor=white)](https://deepwiki.com/context-machine-lab/contextagent)
 [![WeChat](https://img.shields.io/badge/WeChat-07C160?style=for-the-badge&logo=wechat&logoColor=white)](./assets/wechat.jpg)
 [![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/74my3Wkn)
@@ -37,7 +37,7 @@ ContextAgent is a lightweight, context-central multi-agent systems framework des
 
 This project uses [uv](https://docs.astral.sh/uv/) for fast, reliable package management.
 
-### Install uv
+#### Install uv
 
 ```bash
 # macOS/Linux
@@ -46,7 +46,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 See the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/) for more options.
 
-### Setup Environment
+#### Setup Environment
 
 ```bash
 # Clone the repository
@@ -57,7 +57,7 @@ cd contextagent
 uv sync
 ```
 
-#### Configure API Keys
+##### Configure API Keys
 
 ContextAgent requires API keys for LLM providers. Set up your environment in `.env` file:
 
@@ -68,10 +68,20 @@ cp .env.example .env
 ```
 See [.env.example](.env.example) for complete configuration options.
 
+#### Alternative: Install from PyPI
+
+You can also install ContextAgent directly from PyPI without cloning the repository:
+
+```bash
+pip install contextagent
+```
+
+Note: You'll still need to configure API keys in a `.env` file for LLM providers.
+
 
 ## 🚀 Quick Start
 
-### Run Built-in Examples
+#### Run Built-in Examples
 
 Try out ContextAgent with pre-configured example pipelines:
 
@@ -85,7 +95,7 @@ uv run python -m examples.data_science
 uv run python -m examples.web_researcher
 ```
 
-### Basic API Pattern
+#### Basic API Pattern
 
 Here's how to use ContextAgent in your own code:
 
@@ -105,7 +115,7 @@ query = DataScienceQuery(
 pipe.run_sync(query)
 ```
 
-### Web UI (Pipeline Manager)
+#### Web UI (Pipeline Manager)
 
 Run the lightweight Flask web UI to submit and monitor pipelines with live logs:
 
@@ -121,7 +131,7 @@ Then open `http://localhost:9090` in your browser. The UI streams live status an
 
 ContextAgent uses a **PyTorch-like API** for building multi-agent systems. Follow these steps to create your own pipeline:
 
-#### Step 1 - Define Pipeline Class
+##### Step 1 - Define Pipeline Class
 
 Inherit from `BasePipeline` and call `super().__init__(config)`:
 
@@ -135,7 +145,7 @@ class YourPipeline(BasePipeline):
         # Your initialization here
 ```
 
-#### Step 2 - Create Context and Bind Agents
+##### Step 2 - Create Context and Bind Agents
 
 Create a centralized `Context`, get the LLM, and bind agents:
 
@@ -162,7 +172,7 @@ class YourPipeline(BasePipeline):
         self.context.state.register_tool_agents(self.tool_agents)
 ```
 
-#### Step 3 - Define Async Run with @autotracing
+##### Step 3 - Define Async Run with @autotracing
 
 Define your workflow in an async `run()` method:
 
@@ -182,7 +192,7 @@ class YourPipeline(BasePipeline):
             routing_result = await self.routing_agent(query)
 ```
 
-#### Step 4 - Define Query Model and Execute
+##### Step 4 - Define Query Model and Execute
 
 Create a Pydantic model and run your pipeline:
 
@@ -197,76 +207,44 @@ query = YourQuery(prompt="Your task here")
 result = pipe.run_sync(query)
 ```
 
-#### Full Example Reference
+##### Full Example Reference
 
 See complete implementations in:
 - **[examples/data_science.py](examples/data_science.py)** - Basic pipeline usage
 - **[pipelines/data_scientist.py](pipelines/data_scientist.py)** - Full pipeline implementation reference
-- **[Documentation](https://deepwiki.com/context-machine-lab/contextagent)** - Detailed design guide
+- **[Docs Portal](https://context-machine-lab.github.io/contextagent/)** - Tutorials, reference, and guides
 
 
 ## 🏗️ Architecture
 
-ContextAgent is organized around a **central conversation state** and a profile-driven agent system.
-All agents are coordinated through a unified `Context` that manages iteration state and shared
-information. The main components you will interact with are:
+ContextAgent is organized around a **central conversation state** and a profile-driven agent system. All agents are coordinated through a unified `Context` that manages iteration state and shared information.
 
-- **`pipelines/`** – High-level orchestration with `BasePipeline` for workflow management and configuration loading.
-- **`contextagent/agent/`** – `ContextAgent` class extending the agents framework with context awareness, plus runtime tracking and execution utilities.
-- **`contextagent/context/`** – Central conversation state management (`ConversationState`, iteration tracking, context coordination).
-- **`contextagent/profiles/`** – Profile definitions organized by domain (manager, data, web, debug, code, mcp) that define agent capabilities and behavior.
-- **`contextagent/tools/`** – Tool implementations for data processing, web operations, and code execution.
-- **`contextagent/artifacts/`** – Output generation and result formatting (artifact writing, reporting, terminal output).
-- **`contextagent/llm/`** – LLM provider adapters and model configuration.
-- **`contextagent/mcp/`** – Model Context Protocol integration for extended agent capabilities.
-- **`contextagent/utils/`** – Utilities for configuration, parsing, and helper functions.
-- **`examples/`** – Example scripts showing end-to-end usage.
-- **`frontend/`** – Web UI for system interaction and monitoring.
+#### Core Components:
+
+- **`pipelines/`** – Workflow orchestration and configuration management
+- **`contextagent/agent/`** – ContextAgent implementation with context awareness and execution tracking
+- **`contextagent/context/`** – Centralized conversation state and coordination
+- **`contextagent/profiles/`** – Agent profiles defining capabilities (manager, data, web, code, etc.)
+- **`contextagent/tools/`** – Tool implementations for data processing, web operations, and code execution
+- **`examples/`** – Example pipelines demonstrating usage
+- **`frontend/`** – Web UI for pipeline management and monitoring
+
+#### Project Structure:
 
 ```
 contextagent/
-├── pipelines/
-│   ├── base.py               # BasePipeline with config management & helpers
-│   ├── configs/              # YAML configuration files for pipelines
-│   ├── data_scientist.py     # Data science pipeline implementation
-│   └── web_researcher.py     # Web research pipeline implementation
+├── pipelines/          # Workflow orchestration
 ├── contextagent/
-│   ├── agent/
-│   │   ├── agent.py          # ContextAgent class with context injection
-│   │   ├── tracker.py        # RuntimeTracker for execution monitoring
-│   │   └── executor.py       # Execution utilities
-│   ├── context/
-│   │   ├── context.py        # Context coordinator
-│   │   ├── conversation.py   # ConversationState and iteration management
-│   │   └── data_store.py     # Persistent data storage
-│   ├── profiles/
-│   │   ├── base.py           # Profile base class and loader
-│   │   ├── manager/          # Manager profiles (observe, routing, evaluate, writer)
-│   │   ├── data/             # Data processing profiles
-│   │   ├── web/              # Web research profiles
-│   │   ├── code/             # Code execution profiles
-│   │   ├── debug/            # Debug profiles
-│   │   └── mcp/              # MCP-based profiles
-│   ├── tools/
-│   │   ├── data_tools/       # Data analysis and preprocessing
-│   │   ├── web_tools/        # Web searching and crawling
-│   │   └── code_tools/       # Code execution tools
-│   ├── artifacts/
-│   │   ├── artifact_writer.py # Output artifact generation
-│   │   ├── reporter.py       # Result reporting
-│   │   └── terminal_writer.py # Terminal output formatting
-│   ├── llm/                  # LLM provider adapters
-│   ├── mcp/                  # MCP manager and server integration
-│   └── utils/                # Config, parsers, helpers, printer
-├── examples/
-│   ├── data_science.py       # Data science example
-│   └── web_researcher.py     # Web research example
-└── frontend/
-    ├── app.py                # Web UI application
-    ├── streaming_printer.py   # Real-time output streaming
-    ├── static/               # Static assets
-    └── templates/            # HTML templates
+│   ├── agent/          # ContextAgent implementation
+│   ├── context/        # Conversation state management
+│   ├── profiles/       # Agent profiles (manager, data, web, code)
+│   ├── tools/          # Tool implementations
+│   └── artifacts/      # Output formatting
+├── examples/           # Example pipelines
+└── frontend/           # Web UI
 ```
+
+For more details, see the [docs portal](https://context-machine-lab.github.io/contextagent/).
 
 
 ## 📊 Benchmarks
@@ -282,9 +260,9 @@ ContextAgent's context-central design has been validated on multiple research be
 
 ## 🗺️ Roadmap
 
-- [x] Persistence Process - Stateful agent workflows
-- [x] Experience Learning - Memory-based reasoning
-- [x] Tool Design - Dynamic tool creation
+- [ ] Persistence Process - Stateful agent workflows
+- [ ] Experience Learning - Memory-based reasoning
+- [ ] Tool Design - Dynamic tool creation
 - [ ] Frontend Support - Enhanced web UI for system interaction and monitoring
 - [ ] MCP Support - Full Model Context Protocol integration for extended agent capabilities
 - [ ] Claude Code Skill Support - Native integration with Claude Code environment
@@ -293,7 +271,17 @@ ContextAgent's context-central design has been validated on multiple research be
 
 ## 📚 Documentation
 
-More details are available at [Documentation](https://deepwiki.com/context-machine-lab/contextagent).
+- Hosted docs: [https://context-machine-lab.github.io/contextagent/](https://context-machine-lab.github.io/contextagent/)
+- Deep-dive articles: [DeepWiki](https://deepwiki.com/context-machine-lab/contextagent)
+- Local preview:
+  ```bash
+  uv sync --extra docs
+  uv run mkdocs serve
+  ```
+- Static build:
+  ```bash
+  uv run mkdocs build
+  ```
 
 
 ## 🙏 Acknowledgements
@@ -323,7 +311,7 @@ If you use ContextAgent in your research, please cite:
 
 ```bibtex
 @misc{contextagent2025,
-  title={ContextAgent: Agent from Zero},
+  title={ContextAgent: Lightweight Context-Driven Multi-Agent System Design},
   author={Zhimeng Guo, Hangfan Zhang, Siyuan Xu, Huaisheng Zhu, Teng Xiao, Jingyi Chen, Minhao Cheng},
   year={2025},
   publisher = {GitHub},

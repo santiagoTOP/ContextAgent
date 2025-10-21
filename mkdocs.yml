@@ -1,0 +1,100 @@
+site_name: ContextAgent
+site_description: Context-central multi-agent framework for LLM orchestration.
+site_author: Context Machine Lab
+site_url: https://context-machine-lab.github.io/contextagent
+repo_url: https://github.com/context-machine-lab/contextagent
+repo_name: context-machine-lab/contextagent
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - content.code.select
+    - navigation.path
+    - navigation.sections
+    - navigation.expand
+    - content.code.annotate
+  palette:
+    primary: black
+  logo: assets/logo.svg
+  favicon: assets/images/favicon-platform.svg
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: ⚓︎
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+plugins:
+  - search
+  - mkdocstrings:
+      enabled: true
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
+            show_source: false
+            separate_signature: true
+
+extra:
+  generator: false
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/context-machine-lab/contextagent
+      name: GitHub
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/74my3Wkn
+      name: Discord
+    - icon: fontawesome/solid/globe
+      link: https://deepwiki.com/context-machine-lab/contextagent
+      name: DeepWiki
+  consent:
+    title: Cookie consent
+    description: >
+      We use cookies to remember preferences and understand how the documentation is used.
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Concepts:
+      - Architecture: concepts/architecture.md
+      - Agent Lifecycle: concepts/agent-lifecycle.md
+      - Context Engine: concepts/context-engine.md
+      - Tooling & Integrations: concepts/tooling.md
+  - How-to Guides:
+      - Build a Custom Tool: guides/custom-tool.md
+      - Orchestrate Pipelines: guides/pipeline-orchestration.md
+      - Deploy to Production: guides/deployment.md
+  - Tutorials:
+      - Support Assistant: tutorials/support-assistant.md
+  - Reference:
+      - Python API: reference/python.md
+      - CLI: reference/cli.md
+      - Configuration: reference/configuration.md
+  - Examples: examples/index.md
+  - FAQ: faq.md
+  - Changelog: changelog.md
