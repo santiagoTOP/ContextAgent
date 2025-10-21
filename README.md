@@ -13,17 +13,17 @@
 
 </div>
 
-AgentZ is a lightweight, context-central multi-agent systems framework designed for easy context engineering. It focuses on efficiently managing the context of each agent and binds all agents through simplified, centralized context operations.
+AgentZ is a lightweight, context-central multi-agent systems framework designed for easy context engineering. It focuses on efficiently managing the context of each agent and binds all agents through simplified, centralized context operations. Unlike traditional multi-agent frameworks, AgentZ treats agents simply as LLMs with different contexts, eliminating unnecessary complexity. Built with a PyTorch-like API, developers can create sophisticated multi-agent systems with minimal code.
 
 
 ## 🌟 Features
 
-- **📋 Context = Template + State** - Dynamic context management based on [Anthropic's context engineering principles](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
-- **🔀 Decoupled Agent Design** - Agent = LLM + Context. No traditional "multi-agent" complexity; all agents are just LLMs with different contexts
-- **🎨 PyTorch-Like Pipeline API** - Inherit `BasePipeline`, define async `run()`, use `@autotracing` decorator for automatic tracing and helper functions
-- **🌐 Multi-LLM Support** - Works with OpenAI, Claude, Gemini, DeepSeek, and more
-- **🧩 Modular Architecture** - Built on OpenAI Agents SDK with clear separation: context classes, agent instances, pipeline orchestration
-- **⚡ Easy to Use & Customize** - Reuse pipelines with just a query; create new ones with familiar patterns
+- **📋 Context = Template + State**: Dynamic context management based on [Anthropic's blog](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents).
+- **🔀 Decoupled Agent Design**: Agent = LLM + Context. All agents are just LLMs with different contexts.
+- **🎨 PyTorch-Like Pipeline API**: Inherit `BasePipeline`, define async `run()`, use `@autotracing` decorator for tracing.
+- **🌐 Multi-LLM Support**: Works with OpenAI, Claude, Gemini, DeepSeek, and more.
+- **🧩 Modular Architecture**: Built on OpenAI Agents SDK with clear separation: context, agents, pipeline.
+- **⚡ Easy to Use & Customize**: Reuse pipelines with just a query; create new ones with familiar patterns.
 
 
 ## 📢 News
