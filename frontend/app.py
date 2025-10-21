@@ -16,18 +16,27 @@ import json
 from flask import Flask, jsonify, render_template, request, Response
 from rich.console import Console
 
-from streaming_printer import StreamingPrinter
-from pipelines.simple import SimplePipeline
-from pipelines.data_scientist import DataScientistPipeline
-from pipelines.web_researcher import WebSearcherPipeline
-from pipelines.vanilla_chat import VanillaChatPipeline
 from pathlib import Path
+import sys
 from dotenv import load_dotenv
+import importlib
+import os
+import ast
+
+# Ensure project root is importable when running as a script (frontend/app.py)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+# Support both `python frontend/app.py` and `python -m frontend.app`
+try:
+    from streaming_printer import StreamingPrinter
+except ImportError:  # pragma: no cover - fallback for module-run
+    from frontend.streaming_printer import StreamingPrinter
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
 # Ensure environment variables from project root are loaded for provider/tool configs
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
 
@@ -57,22 +66,38 @@ class PipelineField:
 
 
 def discover_example_pipelines() -> Dict[str, Dict[str, Any]]:
-    """Discover available pipelines based on presence of example scripts.
+    """Discover available pipelines by scanning example scripts for pipeline imports.
 
-    Only includes pipelines that have a corresponding script in `examples/`.
-    GUI stays the same; this only affects which entries are returned by the API.
+    - Parses Python files in `examples/` without importing them (avoids executing code)
+    - Detects which pipeline classes they reference (e.g., DataScientistPipeline)
+    - Builds pipeline entries only for those with a corresponding example
+    - Attaches `example_module` dynamically to preserve runtime behavior
     """
     root_dir = Path(__file__).resolve().parent.parent
     examples_dir = root_dir / "examples"
 
-    pipelines: Dict[str, Dict[str, Any]] = {}
+    # Map imported pipeline class name -> example module path
+    class_to_example: Dict[str, str] = {}
+    if examples_dir.exists():
+        for py in examples_dir.glob("*.py"):
+            if py.name.startswith("_") or py.name == "__init__.py":
+                continue
+            try:
+                source = py.read_text(encoding="utf-8")
+                tree = ast.parse(source, filename=str(py))
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("pipelines."):
+                        for alias in node.names:
+                            class_to_example[alias.name] = f"examples.{py.stem}"
+            except Exception:
+                # Ignore unreadable/broken example files
+                continue
 
-    # Data Scientist
-    if (examples_dir / "data_science.py").exists():
-        pipelines["data_scientist"] = {
+    # Base pipeline catalog (static metadata); we only expose entries with examples
+    catalog: Dict[str, Dict[str, Any]] = {
+        "data_scientist": {
             "name": "Data Scientist",
             "description": "Iterative data science workflow with multiple specialized agents.",
-            "class": DataScientistPipeline,
             "config": "pipelines/configs/data_science.yaml",
             "primary_input": "prompt",
             "fields": [
@@ -93,14 +118,10 @@ def discover_example_pipelines() -> Dict[str, Dict[str, Any]]:
                     config_key="data.path",
                 ),
             ],
-        }
-
-    # Web Researcher
-    if (examples_dir / "web_researcher.py").exists():
-        pipelines["web_searcher"] = {
+        },
+        "web_searcher": {
             "name": "Web Researcher",
             "description": "Research workflow that combines search, synthesis, and reporting.",
-            "class": WebSearcherPipeline,
             "config": "pipelines/configs/web_searcher.yaml",
             "primary_input": "prompt",
             "fields": [
@@ -113,14 +134,10 @@ def discover_example_pipelines() -> Dict[str, Dict[str, Any]]:
                     config_key="data.prompt",
                 ),
             ],
-        }
-
-    # Simple Web Search
-    if (examples_dir / "simple.py").exists():
-        pipelines["simple"] = {
+        },
+        "simple": {
             "name": "Simple Web Search",
             "description": "Routes the request through a web search agent for quick answers.",
-            "class": SimplePipeline,
             "config": "pipelines/configs/simple.yaml",
             "primary_input": "prompt",
             "fields": [
@@ -133,14 +150,10 @@ def discover_example_pipelines() -> Dict[str, Dict[str, Any]]:
                     config_key="data.prompt",
                 ),
             ],
-        }
-
-    # Optional: include vanilla_chat only if an example exists
-    if (examples_dir / "vanilla_chat.py").exists():
-        pipelines["vanilla_chat"] = {
+        },
+        "vanilla_chat": {
             "name": "Vanilla Chat",
             "description": "Single-turn conversational agent using the vanilla chat profile.",
-            "class": VanillaChatPipeline,
             "config": "pipelines/configs/vanilla_chat.yaml",
             "primary_input": "prompt",
             "fields": [
@@ -153,7 +166,25 @@ def discover_example_pipelines() -> Dict[str, Dict[str, Any]]:
                     config_key="data.prompt",
                 ),
             ],
-        }
+        },
+    }
+
+    # Build final list including only entries with detected example modules
+    pipelines: Dict[str, Dict[str, Any]] = {}
+    class_name_map = {
+        "data_scientist": "DataScientistPipeline",
+        "web_searcher": "WebSearcherPipeline",
+        "simple": "SimplePipeline",
+        "vanilla_chat": "VanillaChatPipeline",
+    }
+
+    for pid, meta in catalog.items():
+        class_name = class_name_map.get(pid)
+        example_mod = class_to_example.get(class_name) if class_name else None
+        if example_mod:
+            meta_with_example = dict(meta)
+            meta_with_example["example_module"] = example_mod
+            pipelines[pid] = meta_with_example
 
     return pipelines
 
@@ -202,7 +233,6 @@ def run_pipeline_thread(run_id: str) -> None:
         return
 
     pipeline_def = AVAILABLE_PIPELINES[run_entry["pipeline_id"]]
-    pipeline_class = pipeline_def["class"]
     printer: StreamingPrinter = run_entry["printer"]
     stop_flag: threading.Event = run_entry["stop_flag"]
 
@@ -232,61 +262,74 @@ def run_pipeline_thread(run_id: str) -> None:
             if value is not None:
                 apply_config_value(config_payload, field.config_key, value)
 
-        pipeline_instance = pipeline_class(config_payload)
-        # Integrate StreamingPrinter with the pipeline's runtime tracker
-        # so that all update_printer()/group/panel events stream to the UI.
-        try:
-            pipeline_instance.runtime_tracker._printer = printer  # type: ignore[attr-defined]
-        except Exception:
-            # Fallback for legacy attribute
-            setattr(pipeline_instance, "_printer", printer)
+        example_mod = pipeline_def.get("example_module")
+        if example_mod:
+            # Run example module to preserve dynamic behaviors (e.g., timestamps)
+            thread_local = getattr(run_pipeline_thread, "_tls", None)
+            if thread_local is None:
+                thread_local = threading.local()
+                setattr(run_pipeline_thread, "_tls", thread_local)
+            thread_local.run_id = run_id
 
-        run_entry["pipeline_instance"] = pipeline_instance
-        run_entry["status"] = "running"
-        run_entry["started_at"] = time.time()
+            from pipelines import base as base_mod
+            from agentz.agent import tracker as tracker_mod
 
-        # Determine primary input and construct typed query objects when needed
-        primary_key = pipeline_def.get("primary_input")
-        raw_primary = run_entry["inputs"].get(primary_key) if primary_key else None
-        if raw_primary in ("", None):
-            for value in run_entry["inputs"].values():
-                if value not in ("", None):
-                    raw_primary = value
-                    break
+            orig_init = base_mod.BasePipeline.__init__
+            orig_run_sync = base_mod.BasePipeline.run_sync
+            orig_start_printer = tracker_mod.RuntimeTracker.start_printer
 
-        query_input = raw_primary
+            def _patched_start_printer(self):
+                # Route to the StreamingPrinter associated with this run/thread
+                if self._printer is None:
+                    current_id = getattr(thread_local, "run_id", None)
+                    if current_id and current_id in pipeline_runs:
+                        self._printer = pipeline_runs[current_id]["printer"]
+                    else:
+                        self._printer = orig_start_printer(self)
+                return self._printer
 
-        # Align with example scripts by building typed query payloads
-        try:
-            if run_entry["pipeline_id"] == "data_scientist":
-                from pipelines.data_scientist import DataScienceQuery
-
-                prompt_val = run_entry["inputs"].get("prompt") or ""
-                data_path_val = run_entry["inputs"].get("data_path") or ""
-                if prompt_val or data_path_val:
-                    query_input = DataScienceQuery(prompt=prompt_val, data_path=data_path_val)
-            elif run_entry["pipeline_id"] == "web_searcher":
-                from pipelines.web_researcher import WebSearchQuery
-
-                prompt_val = run_entry["inputs"].get("prompt") or (raw_primary or "")
-                query_input = WebSearchQuery(prompt=prompt_val)
-            elif run_entry["pipeline_id"] == "vanilla_chat":
-                # Optional: prefer ChatQuery if present, otherwise pass string
+            def _patched_init(self, config):  # type: ignore[override]
+                orig_init(self, config)
                 try:
-                    from pipelines.vanilla_chat import ChatQuery
-
-                    prompt_val = run_entry["inputs"].get("prompt") or (raw_primary or "")
-                    query_input = ChatQuery(message=prompt_val)
+                    self.runtime_tracker._printer = printer
                 except Exception:
                     pass
-        except Exception:
-            # Fall back silently to raw_primary if typed construction fails
-            query_input = raw_primary
+                current_id = getattr(thread_local, "run_id", None)
+                if current_id and current_id in pipeline_runs:
+                    pipeline_runs[current_id]["pipeline_instance"] = self
 
-        # Ensure ContextAgents can access the tracker for proper logging/tracing
-        # even for pipelines that don't use the autotracing decorator.
-        with pipeline_instance.runtime_tracker.activate():
-            result = pipeline_instance.run_sync(query_input)
+            def _patched_run_sync(self, *args, **kwargs):
+                out = orig_run_sync(self, *args, **kwargs)
+                current_id = getattr(thread_local, "run_id", None)
+                if current_id and current_id in pipeline_runs:
+                    pipeline_runs[current_id]["result"] = extract_result_text(out)
+                return out
+
+            # Apply patches
+            tracker_mod.RuntimeTracker.start_printer = _patched_start_printer  # type: ignore[attr-defined]
+            base_mod.BasePipeline.__init__ = _patched_init  # type: ignore[attr-defined]
+            base_mod.BasePipeline.run_sync = _patched_run_sync  # type: ignore[attr-defined]
+
+            # Update status
+            run_entry["status"] = "running"
+            run_entry["started_at"] = time.time()
+
+            old_cwd = os.getcwd()
+            repo_root = Path(__file__).resolve().parent.parent
+            try:
+                os.chdir(repo_root)
+                mod = importlib.import_module(example_mod)
+                importlib.reload(mod)
+            finally:
+                os.chdir(old_cwd)
+                # Restore originals to avoid cross-run leakage
+                tracker_mod.RuntimeTracker.start_printer = orig_start_printer
+                base_mod.BasePipeline.__init__ = orig_init
+                base_mod.BasePipeline.run_sync = orig_run_sync
+
+            result = pipeline_runs.get(run_id, {}).get("result")
+        else:
+            raise RuntimeError("No example module found for selected pipeline. Example-driven runs only.")
 
         if stop_flag.is_set():
             run_entry["status"] = "cancelled"
