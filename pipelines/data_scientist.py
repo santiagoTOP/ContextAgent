@@ -94,10 +94,10 @@ class DataScientistPipeline(BasePipeline):
 
         # Phase 3: Final report generation
         self.update_printer("research", "Research workflow complete", is_done=True)
-        await self.writer_agent(self.context.state.findings_text())
+        final_report = await self.writer_agent(self.context.state.findings_text())
 
         # Phase 4: Finalization
-        final_result = self.context.state.final_report
+        final_result = final_report
 
         if self.reporter is not None:
             self.reporter.set_final_result(final_result)

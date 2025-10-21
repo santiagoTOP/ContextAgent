@@ -93,18 +93,30 @@ def parse_json_output(output: str) -> Any:
     # If that fails, try to extract from code block if it exists
     if "```" in output:
         parts = output.split("```")
-        if len(parts) >= 2:
+        if len(parts) >= 3:
+            # Standard code block: text before ``` | json\n | json content | ```
             parsed_output = parts[1]
-            if "```" in parsed_output:
-                parsed_output = parsed_output.split("```")[0]
+            # Handle language specifier (e.g., "json" or "json\n")
             if parsed_output.startswith("json") or parsed_output.startswith("JSON"):
-                parsed_output = parsed_output[4:].strip()
+                parsed_output = parsed_output[4:].lstrip()
             else:
-                parsed_output = parsed_output.strip()
+                parsed_output = parsed_output.lstrip()
             try:
                 return json.loads(parsed_output)
             except json.JSONDecodeError:
                 # Try escaping unescaped quotes
+                try:
+                    return json.loads(_escape_unescaped_quotes(parsed_output))
+                except json.JSONDecodeError:
+                    pass
+        elif len(parts) == 2:
+            # Edge case: only one code block marker pair
+            parsed_output = parts[1].strip()
+            if parsed_output.startswith("json") or parsed_output.startswith("JSON"):
+                parsed_output = parsed_output[4:].lstrip()
+            try:
+                return json.loads(parsed_output)
+            except json.JSONDecodeError:
                 try:
                     return json.loads(_escape_unescaped_quotes(parsed_output))
                 except json.JSONDecodeError:

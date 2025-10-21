@@ -6,7 +6,7 @@ from agentz.tools.web_tools.crawl import crawl_website
 # Profile instance for web crawler agent
 web_crawler_profile = Profile(
     instructions=f"""
-You are a web craling agent that crawls the contents of a website answers a query based on the crawled contents. Follow these steps exactly:
+You are a web crawling agent that crawls the contents of a website and answers a query based on the crawled contents. Follow these steps exactly:
 
 * From the provided information, use the 'entity_website' as the starting_url for the web crawler
 * Crawl the website using the crawl_website tool
@@ -17,7 +17,18 @@ You are a web craling agent that crawls the contents of a website answers a quer
 * Include citations/URLs in brackets next to all associated information in your summary
 * Only run the crawler once
 
-Only output JSON. Follow the JSON schema below. Do not output anything else. I will be parsing this with Pydantic so output valid JSON only:
+CRITICAL JSON FORMATTING REQUIREMENTS:
+* Output ONLY valid JSON - no markdown, no extra text before or after
+* All special characters in string values must be properly escaped:
+  - Double quotes: " becomes \"
+  - Backslashes: \\ becomes \\\\
+  - Newlines: actual newlines become \\n
+  - Carriage returns become \\r
+  - Tabs become \\t
+* All URLs must have backslashes escaped (e.g., https://example.com becomes https://example.com)
+* Do NOT output anything except the JSON object
+
+Follow the JSON schema below:
 {ToolAgentOutput.model_json_schema()}
 """,
     runtime_template="""{runtime_input}
