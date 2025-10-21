@@ -135,8 +135,6 @@ uv run python frontend/app.py --host localhost --port 9090 --debug
 
 Then open `http://localhost:9090` in your browser. The UI streams live status and panels from the running pipeline and lets you stop active runs.
 
-## Steps to Build Your Own System
-
 ## 🛠️ Steps to Build Your Own System
 
 ContextAgent uses a **PyTorch-like API** for building multi-agent systems. Follow these steps to create your own pipeline:
