@@ -212,7 +212,7 @@ result = pipe.run_sync(query)
 See complete implementations in:
 - **[examples/data_science.py](examples/data_science.py)** - Basic pipeline usage
 - **[pipelines/data_scientist.py](pipelines/data_scientist.py)** - Full pipeline implementation reference
-- **[Docs Portal](https://context-machine-lab.github.io/contextagent/)** - Tutorials, reference, and guides
+- **[Docs Portal](https://context-machine-lab.github.io/ContextAgent/)** - Tutorials, reference, and guides
 
 
 ## 🏗️ Architecture
@@ -244,7 +244,7 @@ contextagent/
 └── frontend/           # Web UI
 ```
 
-For more details, see the [docs portal](https://context-machine-lab.github.io/contextagent/).
+For more details, see the [docs portal](https://context-machine-lab.github.io/ContextAgent/).
 
 
 ## 📊 Benchmarks
@@ -271,7 +271,7 @@ ContextAgent's context-central design has been validated on multiple research be
 
 ## 📚 Documentation
 
-- Hosted docs: [https://context-machine-lab.github.io/contextagent/](https://context-machine-lab.github.io/contextagent/)
+- Hosted docs: [https://context-machine-lab.github.io/ContextAgent/](https://context-machine-lab.github.io/ContextAgent/)
 - Deep-dive articles: [DeepWiki](https://deepwiki.com/context-machine-lab/contextagent)
 - Local preview:
   ```bash
