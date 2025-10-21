@@ -32,6 +32,16 @@ ContextAgent is a lightweight, context-central multi-agent systems framework des
 
 ## 🎬 Demo
 
+**Data Science Pipeline**
+
+![Data Science Demo](assets/DS.gif)
+
+**Web Research Pipeline**
+
+![Web Research Demo](assets/WEB.gif)
+
+
+
 
 ## 📦 Installation
 
