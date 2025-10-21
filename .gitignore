@@ -220,3 +220,4 @@ __marimo__/
 tmp/
 !agentz/profiles/data/
 outputs/
+ignored_examples/
