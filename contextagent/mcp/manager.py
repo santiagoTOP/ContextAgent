@@ -32,11 +32,41 @@ class MCPRegistry:
 
     @classmethod
     def from_config(cls, config: Optional[Mapping[str, Any]]) -> "MCPRegistry":
-        """Create a registry from configuration mapping."""
+        """Create a registry from configuration mapping.
+
+        Accepts two shapes:
+        - {"servers": {"name": {"type": "stdio", "params": {...}}}}
+        - {"mcpServers": {"name": {"command": "npx", "args": ["@pkg"]}}}
+          (the latter is normalized to stdio with params)
+        """
         if config is None:
             return cls()
 
         servers_config = config.get("servers", {})
+
+        # Support alternative "mcpServers" shape, e.g. from client configs
+        if not servers_config and isinstance(config.get("mcpServers"), Mapping):
+            normalized: Dict[str, Dict[str, Any]] = {}
+            for name, raw in config.get("mcpServers", {}).items():
+                if not isinstance(raw, Mapping):
+                    raise MCPConfigurationError(
+                        f"MCP server '{name}' configuration must be a mapping."
+                    )
+                server_type = str(raw.get("type") or raw.get("transport") or "stdio").strip().lower()
+                params: Dict[str, Any] = {}
+                if "command" in raw:
+                    params["command"] = raw["command"]
+                if "args" in raw:
+                    params["args"] = raw["args"]
+                options: Dict[str, Any] = {}
+                if params:
+                    options["params"] = params
+                # Carry over other non-type/transport keys if present
+                for k, v in raw.items():
+                    if k not in {"type", "transport", "command", "args"}:
+                        options[k] = v
+                normalized[name] = {"type": server_type, **options}
+            servers_config = normalized
         if servers_config and not isinstance(servers_config, Mapping):
             raise MCPConfigurationError("'servers' must be a mapping of server definitions.")
 
