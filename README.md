@@ -68,6 +68,16 @@ cp .env.example .env
 ```
 See [.env.example](.env.example) for complete configuration options.
 
+### Alternative: Install from PyPI
+
+You can also install ContextAgent directly from PyPI without cloning the repository:
+
+```bash
+pip install contextagent
+```
+
+Note: You'll still need to configure API keys in a `.env` file for LLM providers.
+
 
 ## 🚀 Quick Start
 
@@ -250,9 +260,9 @@ ContextAgent's context-central design has been validated on multiple research be
 
 ## 🗺️ Roadmap
 
-- [x] Persistence Process - Stateful agent workflows
-- [x] Experience Learning - Memory-based reasoning
-- [x] Tool Design - Dynamic tool creation
+- [ ] Persistence Process - Stateful agent workflows
+- [ ] Experience Learning - Memory-based reasoning
+- [ ] Tool Design - Dynamic tool creation
 - [ ] Frontend Support - Enhanced web UI for system interaction and monitoring
 - [ ] MCP Support - Full Model Context Protocol integration for extended agent capabilities
 - [ ] Claude Code Skill Support - Native integration with Claude Code environment
