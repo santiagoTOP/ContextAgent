@@ -212,11 +212,19 @@ class Printer:
         *,
         border_style: Optional[str] = None,
         iteration: Optional[int] = None,
+        group_id: Optional[str] = None,
     ) -> None:
         """Render a standalone panel outside the live dashboard.
 
         Useful for persisting rich text output to the terminal while keeping the
         live printer focused on lightweight status updates.
+
+        Args:
+            title: Panel title
+            content: Panel content
+            border_style: Optional border color
+            iteration: Optional iteration number to group panels
+            group_id: Optional group ID (currently unused, for future enhancements)
         """
         # content = self._truncate_content(content)
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
-import re
-from typing import Optional, List, Type, Set
-from pydantic import BaseModel, Field, model_validator
+from typing import Optional, List, Type, Any
+from pydantic import BaseModel, Field
 
 
 class ToolAgentOutput(BaseModel):
@@ -15,55 +14,57 @@ class Profile(BaseModel):
     runtime_template: str = Field(description="The runtime template for the agent's behavior")
     model: Optional[str] = Field(default=None, description="Model override for this profile (e.g., 'gpt-4', 'claude-3-5-sonnet')")
     output_schema: Optional[Type[BaseModel]] = Field(default=None, description="Pydantic model class for structured output validation")
-    input_schema: Optional[Type[BaseModel]] = Field(default=None, description="Pydantic model class for input validation")
-    tools: Optional[List[str]] = Field(default=None, description="List of tools to use for this profile")
+    tools: Optional[List[Any]] = Field(default=None, description="List of tool objects (e.g., FunctionTool instances) to use for this profile")
+    description: Optional[str] = Field(default=None, description="Optional one-sentence description for agent capabilities (auto-extracted from instructions if not provided)")
 
     class Config:
         arbitrary_types_allowed = True
 
-    @model_validator(mode='after')
-    def validate_runtime_template_placeholders(self) -> 'Profile':
-        """Validate that all placeholders in runtime_template match fields in input_schema."""
-        if not self.runtime_template or not self.input_schema:
-            return self
+    def get_description(self) -> str:
+        """Get description for this profile.
 
-        # Extract placeholders from runtime_template (format: [[FIELD_NAME]])
-        placeholder_pattern = r'\[\[([A-Z_]+)\]\]'
-        placeholders: Set[str] = set(re.findall(placeholder_pattern, self.runtime_template))
+        Returns explicit description if set, otherwise auto-extracts from instructions.
+        Auto-extraction takes the first sentence and removes 'You are a/an ' prefix.
 
-        # Get field names from input_schema and convert to uppercase
-        schema_fields: Set[str] = {field_name.upper() for field_name in self.input_schema.model_fields.keys()}
+        Returns:
+            Description string
+        """
+        if self.description:
+            return self.description
 
-        # Check for mismatches
-        missing_in_schema = placeholders - schema_fields
+        # Auto-extract from first sentence of instructions
+        first_line = self.instructions.split('\n')[0].strip()
 
-        if missing_in_schema:
-            raise ValueError(
-                f"Runtime template contains placeholders that don't match input_schema fields: "
-                f"{missing_in_schema}. Available fields in input_schema (uppercase): {schema_fields}"
-            )
+        # Remove "You are a " or "You are an " prefix
+        if first_line.startswith("You are a "):
+            desc = first_line[10:].strip()  # len("You are a ") = 10
+        elif first_line.startswith("You are an "):
+            desc = first_line[11:].strip()  # len("You are an ") = 11
+        else:
+            desc = first_line
 
-        return self
+        # Remove trailing period
+        if desc.endswith('.'):
+            desc = desc[:-1]
+
+        return desc
 
     def render(self, **kwargs) -> str:
         """Render the runtime template with provided keyword arguments.
 
         Args:
             **kwargs: Values to substitute for placeholders in the template.
-                     Keys are matched case-insensitively with [[PLACEHOLDER]] patterns.
+                     Keys are matched case-insensitively with {placeholder} patterns.
 
         Returns:
             Rendered template string with all placeholders replaced.
 
         Examples:
-            profile.render(QUERY="What is AI?", HISTORY="Previous context...")
+            profile.render(task="What is AI?", query="Previous context...")
         """
-        result = self.runtime_template
-        # Replace [[KEY]] placeholders with provided values
-        for key, value in kwargs.items():
-            placeholder = f"[[{key.upper()}]]"
-            result = result.replace(placeholder, str(value))
-        return result
+        # Convert all keys to lowercase and use .format() for substitution
+        kwargs_lower = {k.lower(): str(v) for k, v in kwargs.items()}
+        return self.runtime_template.format(**kwargs_lower)
 
 
 def load_all_profiles():
@@ -100,8 +101,9 @@ def load_all_profiles():
                     # Add _key attribute to profile for automatic name derivation
                     obj._key = key
                     profiles[key] = obj
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error loading profile: {module_name}")
+            raise e
 
     return profiles
 

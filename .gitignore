@@ -214,8 +214,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-data/
+
 .DS_Store
 
 tmp/
 !agentz/profiles/data/
+outputs/
