@@ -15,7 +15,8 @@
 
 AgentZ is a lightweight, context-central multi-agent systems framework designed for easy context engineering. It focuses on efficiently managing the context of each agent and binds all agents through simplified, centralized context operations.
 
-## Features
+
+## 🌟 Features
 
 - **📋 Context = Template + State** - Dynamic context management based on [Anthropic's context engineering principles](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
 - **🔀 Decoupled Agent Design** - Agent = LLM + Context. No traditional "multi-agent" complexity; all agents are just LLMs with different contexts
@@ -24,13 +25,15 @@ AgentZ is a lightweight, context-central multi-agent systems framework designed 
 - **🧩 Modular Architecture** - Built on OpenAI Agents SDK with clear separation: context classes, agent instances, pipeline orchestration
 - **⚡ Easy to Use & Customize** - Reuse pipelines with just a query; create new ones with familiar patterns
 
-## News
-- **[2025-10]** AgentZ is released now! 
 
-## Demo
+## 📢 News
+- **[2025-10]** AgentZ is released now!
 
 
-## Installation
+## 🎬 Demo
+
+
+## 📦 Installation
 
 This project uses [uv](https://docs.astral.sh/uv/) for fast, reliable package management.
 
@@ -65,7 +68,8 @@ cp .env.example .env
 ```
 See [.env.example](.env.example) for complete configuration options.
 
-## Quick Start
+
+## 🚀 Quick Start
 
 ### Run Built-in Examples
 
@@ -101,7 +105,8 @@ query = DataScienceQuery(
 pipe.run_sync(query)
 ```
 
-## Steps to Build Your Own System
+
+## 🛠️ Steps to Build Your Own System
 
 AgentZ uses a **PyTorch-like API** for building multi-agent systems. Follow these steps to create your own pipeline:
 
@@ -188,7 +193,8 @@ See complete implementations in:
 - **[pipelines/data_scientist.py](pipelines/data_scientist.py)** - Full pipeline implementation reference
 - **[Documentation](https://deepwiki.com/context-machine-lab/agentz)** - Detailed design guide
 
-## Architecture
+
+## 🏗️ Architecture
 
 AgentZ is organized around a **central conversation state** and a profile-driven agent system.
 All agents are coordinated through a unified `Context` that manages iteration state and shared
@@ -252,7 +258,7 @@ agentz/
 ```
 
 
-## Benchmarks
+## 📊 Benchmarks
 
 AgentZ's context-central design has been validated on multiple research benchmarks:
 
@@ -262,7 +268,8 @@ AgentZ's context-central design has been validated on multiple research benchmar
 
 *Detailed benchmark results and comparisons coming soon.*
 
-## Roadmap
+
+## 🗺️ Roadmap
 
 - [x] Persistence Process - Stateful agent workflows
 - [x] Experience Learning - Memory-based reasoning
@@ -272,11 +279,13 @@ AgentZ's context-central design has been validated on multiple research benchmar
 - [ ] Claude Code Skill Support - Native integration with Claude Code environment
 - [ ] Workflow RAG - Retrieval-augmented generation for complex workflows
 
-## Documentation
 
-More details are available at 📖[Documentation](https://deepwiki.com/context-machine-lab/agentz).
+## 📚 Documentation
 
-## Acknowledgements
+More details are available at [Documentation](https://deepwiki.com/context-machine-lab/agentz).
+
+
+## 🙏 Acknowledgements
 
 AgentZ's context-central design is inspired by the multi-agent systems research community and best practices in distributed state management. We are particularly grateful to:
 
@@ -286,15 +295,18 @@ AgentZ's context-central design is inspired by the multi-agent systems research 
 
 We thank the developers of these frameworks and the broader LLM community whose work informed this architecture.
 
-## Contributing
+
+## 🤝 Contributing
 
 We welcome contributions! AgentZ is designed to be a community resource for multi-agent research. Please open an issue or submit a pull request.
 
-## License
+
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Citation
+
+## 📖 Citation
 
 If you use AgentZ in your research, please cite:
 
