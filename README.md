@@ -40,7 +40,9 @@ ContextAgent is a lightweight, context-central multi-agent systems framework des
 
 ![Web Research Demo](assets/WEB.gif)
 
+**GUI Control Panel**
 
+![GUI Control Panel Demo](assets/controller_speed.gif)
 
 
 ## 📦 Installation
